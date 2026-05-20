@@ -23,7 +23,7 @@ export const AppNavigator = () => (
       <Stack.Screen
         component={CouponListScreen}
         name="CouponList"
-        options={{ title: 'Cupons' }}
+        options={{ headerShown: false }}
       />
       <Stack.Screen
         component={CouponFormScreen}
