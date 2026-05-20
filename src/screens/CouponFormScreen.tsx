@@ -1,3 +1,4 @@
+import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
 import {
   Alert,
@@ -20,9 +21,25 @@ import type { CouponFormInput } from '../types/coupon';
 import type { CouponFormScreenProps } from '../types/navigation';
 
 const pickImage = async () => {
+  const documentResult = await DocumentPicker.getDocumentAsync({
+    copyToCacheDirectory: true,
+    multiple: false,
+    type: ['image/png', 'image/jpeg', 'image/*'],
+  });
+
+  if (!documentResult.canceled) {
+    return {
+      uri: documentResult.assets[0]?.uri ?? '',
+    };
+  }
+
+  return undefined;
+};
+
+const pickImageFromLibrary = async () => {
   const result = await ImagePicker.launchImageLibraryAsync({
     allowsEditing: true,
-    mediaTypes: ImagePicker.MediaTypeOptions.Images,
+    mediaTypes: ['images'],
     quality: 0.85,
   });
 
@@ -41,6 +58,7 @@ const initialFormValues: CouponFormInput = {
   description: '',
   opening: '18:00',
   restaurant: '',
+  restaurantURL: '',
 };
 
 export const CouponFormScreen = ({ navigation, route }: CouponFormScreenProps) => {
@@ -63,14 +81,17 @@ export const CouponFormScreen = ({ navigation, route }: CouponFormScreenProps) =
           opening: coupon.opening,
           restaurant: coupon.restaurant,
           restaurantLogo: coupon.restaurantLogo,
+          restaurantURL: coupon.restaurantURL ?? '',
         }
       : initialFormValues,
   );
 
   const handleImagePick = async (
     field: 'mealImage' | 'restaurantLogo',
+    source: 'documents' | 'gallery' = 'documents',
   ) => {
-    const image = await pickImage();
+    const image =
+      source === 'documents' ? await pickImage() : await pickImageFromLibrary();
 
     if (image?.uri) {
       form.updateField(field, image);
@@ -152,6 +173,13 @@ export const CouponFormScreen = ({ navigation, route }: CouponFormScreenProps) =
           <Text style={styles.imagePickerText}>Selecionar PNG do prato</Text>
         )}
       </Pressable>
+      <Pressable
+        accessibilityRole="button"
+        onPress={() => handleImagePick('mealImage', 'gallery')}
+        style={styles.galleryButton}
+      >
+        <Text style={styles.galleryButtonText}>Escolher pela galeria</Text>
+      </Pressable>
 
       <Pressable
         accessibilityRole="checkbox"
@@ -180,6 +208,13 @@ export const CouponFormScreen = ({ navigation, route }: CouponFormScreenProps) =
           <Text style={styles.imagePickerText}>Selecionar PNG da logo</Text>
         )}
       </Pressable>
+      <Pressable
+        accessibilityRole="button"
+        onPress={() => handleImagePick('restaurantLogo', 'gallery')}
+        style={styles.galleryButton}
+      >
+        <Text style={styles.galleryButtonText}>Escolher pela galeria</Text>
+      </Pressable>
 
       <Text style={styles.label}>Restaurante *</Text>
       <TextInput
@@ -194,7 +229,21 @@ export const CouponFormScreen = ({ navigation, route }: CouponFormScreenProps) =
         <Text style={styles.error}>{form.errors.restaurant}</Text>
       ) : null}
 
-      <Text style={styles.label}>Promocao *</Text>
+      <Text style={styles.label}>URL do restaurante</Text>
+      <TextInput
+        autoCapitalize="none"
+        keyboardType="url"
+        onChangeText={(value) => form.updateField('restaurantURL', value)}
+        placeholder="https://restaurante.com.br"
+        placeholderTextColor={colors.textMuted}
+        style={[styles.input, form.errors.restaurantURL && styles.inputError]}
+        value={form.values.restaurantURL}
+      />
+      {form.errors.restaurantURL ? (
+        <Text style={styles.error}>{form.errors.restaurantURL}</Text>
+      ) : null}
+
+      <Text style={styles.label}>Promoção *</Text>
       <View style={styles.formatToolbar}>
         <Pressable
           onPress={() => applyDescriptionFormat('bold')}
@@ -377,6 +426,15 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: spacing.sm,
     marginBottom: spacing.sm,
+  },
+  galleryButton: {
+    alignSelf: 'flex-start',
+    paddingVertical: spacing.sm,
+  },
+  galleryButtonText: {
+    color: colors.login,
+    fontFamily: typography.family.semiBold,
+    fontSize: typography.caption,
   },
   imagePicker: {
     alignItems: 'center',

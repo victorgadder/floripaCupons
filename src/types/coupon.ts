@@ -10,6 +10,7 @@ export type Coupon = {
   mealImage?: CouponImage;
   restaurantLogo?: CouponImage;
   restaurant: string;
+  restaurantURL?: string;
   description: string;
   opening: string;
   close: string;
@@ -20,6 +21,7 @@ export type CouponFormInput = {
   mealImage?: CouponImage;
   restaurantLogo?: CouponImage;
   restaurant: string;
+  restaurantURL?: string;
   description: string;
   opening: string;
   close: string;

@@ -1,11 +1,16 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
+  Alert,
+  Animated,
   FlatList,
   Image,
+  Linking,
+  PanResponder,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
+  useWindowDimensions,
   View,
 } from 'react-native';
 import type { ComponentType } from 'react';
@@ -28,6 +33,7 @@ import { useCouponStore } from '../store/couponStore';
 import { colors } from '../theme/colors';
 import { spacing } from '../theme/spacing';
 import { typography } from '../theme/typography';
+import type { Coupon } from '../types/coupon';
 import type { CouponListScreenProps } from '../types/navigation';
 
 type CategoryId =
@@ -45,11 +51,18 @@ type Category = {
   Icon: ComponentType<SvgProps>;
 };
 
+type ScreenMode = 'coupons' | 'manage';
+
 const HEADER_HEIGHT = 158;
 const FOOTER_HEIGHT = 93;
+const LIST_HORIZONTAL_PADDING = 16;
 const PAGE_SIZE = 4;
 const SEARCH_HEIGHT = 27;
 const SEARCH_WIDTH = 290;
+const BANNER_ASPECT_RATIO = 1472 / 812;
+const CARD_HEIGHT = 159;
+const CARD_GAP = 16;
+const CARD_STEP = CARD_HEIGHT + CARD_GAP;
 
 const categories: Category[] = [
   { id: 'todos', label: 'Todos', Icon: TodosIcon },
@@ -61,12 +74,157 @@ const categories: Category[] = [
   { id: 'barButeco', label: 'Bar/Buteco', Icon: BarButecoIcon },
 ];
 
+type ManageCouponCardProps = {
+  coupon: Coupon;
+  index: number;
+  itemCount: number;
+  onDelete: () => void;
+  onDrop: (fromIndex: number, toIndex: number) => void;
+  onEdit: () => void;
+};
+
+const ManageCouponCard = ({
+  coupon,
+  index,
+  itemCount,
+  onDelete,
+  onDrop,
+  onEdit,
+}: ManageCouponCardProps) => {
+  const dragY = useRef(new Animated.Value(0)).current;
+  const wiggle = useRef(new Animated.Value(0)).current;
+  const [isDragging, setIsDragging] = useState(false);
+
+  useEffect(() => {
+    if (!isDragging) {
+      wiggle.stopAnimation();
+      wiggle.setValue(0);
+      return;
+    }
+
+    const animation = Animated.loop(
+      Animated.sequence([
+        Animated.timing(wiggle, {
+          duration: 70,
+          toValue: 1,
+          useNativeDriver: true,
+        }),
+        Animated.timing(wiggle, {
+          duration: 70,
+          toValue: -1,
+          useNativeDriver: true,
+        }),
+        Animated.timing(wiggle, {
+          duration: 70,
+          toValue: 0,
+          useNativeDriver: true,
+        }),
+      ]),
+    );
+
+    animation.start();
+
+    return () => animation.stop();
+  }, [isDragging, wiggle]);
+
+  const panResponder = useMemo(
+    () =>
+      PanResponder.create({
+        onMoveShouldSetPanResponder: () => isDragging,
+        onPanResponderMove: (_, gestureState) => {
+          dragY.setValue(gestureState.dy);
+        },
+        onPanResponderRelease: (_, gestureState) => {
+          const offset = Math.round(gestureState.dy / CARD_STEP);
+          const nextIndex = Math.max(0, Math.min(itemCount - 1, index + offset));
+
+          setIsDragging(false);
+          dragY.setValue(0);
+
+          if (nextIndex !== index) {
+            onDrop(index, nextIndex);
+          }
+        },
+        onPanResponderTerminate: () => {
+          setIsDragging(false);
+          dragY.setValue(0);
+        },
+      }),
+    [dragY, index, isDragging, itemCount, onDrop],
+  );
+
+  const rotation = wiggle.interpolate({
+    inputRange: [-1, 0, 1],
+    outputRange: ['-1.5deg', '0deg', '1.5deg'],
+  });
+
+  return (
+    <Animated.View
+      {...panResponder.panHandlers}
+      style={[
+        isDragging && styles.draggingCard,
+        {
+          transform: [
+            { translateY: dragY },
+            { rotate: rotation },
+            { scale: isDragging ? 1.015 : 1 },
+          ],
+        },
+      ]}
+    >
+      <CouponCard
+        coupon={coupon}
+        mode="manage"
+        onDelete={onDelete}
+        onEdit={onEdit}
+        onLongPress={() => setIsDragging(true)}
+      />
+    </Animated.View>
+  );
+};
+
 export const CouponListScreen = ({ navigation }: CouponListScreenProps) => {
   const coupons = useCouponStore((state) => state.coupons);
+  const deleteCoupon = useCouponStore((state) => state.deleteCoupon);
+  const reorderCoupons = useCouponStore((state) => state.reorderCoupons);
   const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
+  const [screenMode, setScreenMode] = useState<ScreenMode>('coupons');
   const [selectedCategory, setSelectedCategory] = useState<CategoryId>('todos');
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
-  const visibleCoupons = coupons.slice(0, visibleCount);
+  const bannerWidth = width - LIST_HORIZONTAL_PADDING * 2;
+  const listCoupons =
+    screenMode === 'manage' ? coupons : coupons.slice(0, visibleCount);
+
+  const handleCardPress = async (restaurantURL?: string) => {
+    if (!restaurantURL) {
+      return;
+    }
+
+    const canOpen = await Linking.canOpenURL(restaurantURL);
+
+    if (canOpen) {
+      await Linking.openURL(restaurantURL);
+    }
+  };
+
+  const handleDeleteCoupon = (couponId: string) => {
+    Alert.alert('Excluir card', 'Deseja excluir este card?', [
+      { style: 'cancel', text: 'Cancelar' },
+      {
+        onPress: () => deleteCoupon(couponId),
+        style: 'destructive',
+        text: 'Excluir',
+      },
+    ]);
+  };
+
+  const reorderCouponByIndex = (fromIndex: number, toIndex: number) => {
+    const nextCoupons = [...coupons];
+    const [selectedCoupon] = nextCoupons.splice(fromIndex, 1);
+    nextCoupons.splice(toIndex, 0, selectedCoupon);
+    reorderCoupons(nextCoupons);
+  };
 
   return (
     <View style={styles.container}>
@@ -122,55 +280,103 @@ export const CouponListScreen = ({ navigation }: CouponListScreenProps) => {
 
       <FlatList
         ListHeaderComponent={
-          <Image
-            source={require('../../assets/banner.png')}
-            style={styles.banner}
-          />
+          screenMode === 'coupons' ? (
+            <Image
+              source={require('../../assets/banner.png')}
+              style={[
+                styles.banner,
+                {
+                  height: bannerWidth / BANNER_ASPECT_RATIO,
+                  width: bannerWidth,
+                },
+              ]}
+            />
+          ) : null
         }
         contentContainerStyle={[
           styles.listContent,
           { paddingBottom: FOOTER_HEIGHT + insets.bottom + spacing.md },
         ]}
-        data={visibleCoupons}
+        data={listCoupons}
         ItemSeparatorComponent={() => <View style={styles.separator} />}
         keyExtractor={(coupon) => coupon.id}
         onEndReached={() =>
-          setVisibleCount((currentCount) =>
-            Math.min(currentCount + PAGE_SIZE, coupons.length),
-          )
+          screenMode === 'coupons'
+            ? setVisibleCount((currentCount) =>
+                Math.min(currentCount + PAGE_SIZE, coupons.length),
+              )
+            : undefined
         }
         onEndReachedThreshold={0.6}
         renderItem={({ item }) => (
-          <CouponCard
-            coupon={item}
-            onPress={() =>
-              navigation.navigate('CouponForm', {
-                couponId: item.id,
-              })
-            }
-          />
+          screenMode === 'manage' ? (
+            <ManageCouponCard
+              coupon={item}
+              index={coupons.findIndex((coupon) => coupon.id === item.id)}
+              itemCount={coupons.length}
+              onDelete={() => handleDeleteCoupon(item.id)}
+              onDrop={reorderCouponByIndex}
+              onEdit={() =>
+                navigation.navigate('CouponForm', {
+                  couponId: item.id,
+                })
+              }
+            />
+          ) : (
+            <CouponCard
+              coupon={item}
+              mode="coupons"
+              onDelete={() => handleDeleteCoupon(item.id)}
+              onEdit={() =>
+                navigation.navigate('CouponForm', {
+                  couponId: item.id,
+                })
+              }
+              onPress={() => handleCardPress(item.restaurantURL)}
+            />
+          )
         )}
       />
 
       <View style={styles.footer}>
         <Pressable
           accessibilityRole="button"
-          onPress={() => undefined}
+          onPress={() => setScreenMode('coupons')}
           style={({ pressed }) => [styles.footerButton, pressed && styles.pressed]}
         >
-          <CupomIcon color={colors.selected} height={24} width={24} />
-          <Text style={[styles.footerLabel, styles.footerLabelSelected]}>
+          <CupomIcon
+            color={screenMode === 'coupons' ? colors.selected : colors.surface}
+            height={24}
+            width={24}
+          />
+          <Text
+            style={[
+              styles.footerLabel,
+              screenMode === 'coupons' && styles.footerLabelSelected,
+            ]}
+          >
             Cupons
           </Text>
         </Pressable>
 
         <Pressable
           accessibilityRole="button"
-          onPress={() => navigation.navigate('CouponForm')}
+          onPress={() => setScreenMode('manage')}
           style={({ pressed }) => [styles.footerButton, pressed && styles.pressed]}
         >
-          <ConfigCupomIcon color={colors.surface} height={24} width={24} />
-          <Text style={styles.footerLabel}>Gerir</Text>
+          <ConfigCupomIcon
+            color={screenMode === 'manage' ? colors.selected : colors.surface}
+            height={24}
+            width={24}
+          />
+          <Text
+            style={[
+              styles.footerLabel,
+              screenMode === 'manage' && styles.footerLabelSelected,
+            ]}
+          >
+            Gerir
+          </Text>
         </Pressable>
       </View>
     </View>
@@ -179,13 +385,9 @@ export const CouponListScreen = ({ navigation }: CouponListScreenProps) => {
 
 const styles = StyleSheet.create({
   banner: {
-    borderColor: colors.selected,
     borderRadius: 8,
-    borderWidth: 1,
-    height: 203,
     marginBottom: 10,
     resizeMode: 'cover',
-    width: '100%',
   },
   categoryButton: {
     alignItems: 'center',
@@ -223,6 +425,11 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
     flex: 1,
   },
+  draggingCard: {
+    elevation: 8,
+    opacity: 0.96,
+    zIndex: 10,
+  },
   footer: {
     alignItems: 'center',
     backgroundColor: colors.header,
@@ -254,7 +461,7 @@ const styles = StyleSheet.create({
     fontFamily: typography.family.interSemiBold,
   },
   listContent: {
-    padding: 16,
+    padding: LIST_HORIZONTAL_PADDING,
   },
   loginButton: {
     alignItems: 'center',
@@ -301,7 +508,7 @@ const styles = StyleSheet.create({
     marginHorizontal: 6,
   },
   separator: {
-    height: 10,
+    height: 16,
   },
   topSection: {
     backgroundColor: colors.header,

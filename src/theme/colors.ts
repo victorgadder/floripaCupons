@@ -9,6 +9,7 @@ export const colors = {
   text: '#222222',
   textMuted: '#777777',
   placeholder: '#919493',
+  open: '#3ab33a',
   border: '#E8E8EE',
   success: '#159C5B',
   warning: '#F7B731',

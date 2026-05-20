@@ -7,6 +7,14 @@ export const couponFormSchema = z.object({
   mealImage: z.object({ uri: z.string().min(1) }).optional(),
   restaurantLogo: z.object({ uri: z.string().min(1) }).optional(),
   restaurant: z.string().trim().min(1, 'Informe o restaurante.'),
+  restaurantURL: z
+    .string()
+    .trim()
+    .optional()
+    .refine(
+      (value) => !value || /^https?:\/\/\S+\.\S+/.test(value),
+      'Informe uma URL valida iniciando com http:// ou https://.',
+    ),
   description: z.string().trim().min(1, 'Informe a promocao.'),
   opening: z
     .string()

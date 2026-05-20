@@ -10,6 +10,7 @@ type CouponState = {
   addCoupon: (input: CouponFormInput) => void;
   deleteCoupon: (couponId: CouponId) => void;
   getCouponById: (couponId: CouponId) => Coupon | undefined;
+  reorderCoupons: (coupons: Coupon[]) => void;
   updateCoupon: (couponId: CouponId, input: CouponFormInput) => void;
 };
 
@@ -18,6 +19,7 @@ const normalizeCouponInput = (input: CouponFormInput): CouponFormInput => ({
   mealImage: input.mealImage,
   restaurantLogo: input.restaurantLogo,
   restaurant: input.restaurant.trim(),
+  restaurantURL: input.restaurantURL?.trim() || undefined,
   description: input.description.trim(),
   opening: input.opening.trim(),
   close: input.close.trim(),
@@ -44,6 +46,9 @@ export const useCouponStore = create<CouponState>()(
       },
       getCouponById: (couponId) =>
         get().coupons.find((coupon) => coupon.id === couponId),
+      reorderCoupons: (coupons) => {
+        set({ coupons });
+      },
       updateCoupon: (couponId, input) => {
         set((state) => ({
           coupons: state.coupons.map((coupon) =>
