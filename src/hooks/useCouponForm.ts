@@ -1,31 +1,28 @@
 import { useMemo, useState } from 'react';
 import { ZodError } from 'zod';
 
+import type { CouponFormInput } from '../types/coupon';
 import { couponFormSchema } from '../utils/couponValidation';
 
-type CouponFormValues = {
-  title: string;
-  description: string;
-};
+type CouponFormErrors = Partial<Record<keyof CouponFormInput, string>>;
 
-export const useCouponForm = (initialValues: CouponFormValues) => {
-  const [values, setValues] = useState<CouponFormValues>(initialValues);
-  const [titleError, setTitleError] = useState<string | null>(null);
+export const useCouponForm = (initialValues: CouponFormInput) => {
+  const [values, setValues] = useState<CouponFormInput>(initialValues);
+  const [errors, setErrors] = useState<CouponFormErrors>({});
 
   const isDirty = useMemo(
-    () =>
-      values.title !== initialValues.title ||
-      values.description !== initialValues.description,
-    [
-      initialValues.description,
-      initialValues.title,
-      values.description,
-      values.title,
-    ],
+    () => JSON.stringify(values) !== JSON.stringify(initialValues),
+    [initialValues, values],
   );
 
-  const updateField = (field: keyof CouponFormValues, value: string) => {
-    setTitleError(null);
+  const updateField = <Field extends keyof CouponFormInput>(
+    field: Field,
+    value: CouponFormInput[Field],
+  ) => {
+    setErrors((currentErrors) => ({
+      ...currentErrors,
+      [field]: undefined,
+    }));
     setValues((currentValues) => ({
       ...currentValues,
       [field]: value,
@@ -34,13 +31,24 @@ export const useCouponForm = (initialValues: CouponFormValues) => {
 
   const validate = () => {
     try {
+      setErrors({});
       return {
         ok: true as const,
         data: couponFormSchema.parse(values),
       };
     } catch (error) {
       if (error instanceof ZodError) {
-        setTitleError(error.issues[0]?.message ?? 'Revise os dados do cupom.');
+        const nextErrors: CouponFormErrors = {};
+
+        error.issues.forEach((issue) => {
+          const field = issue.path[0] as keyof CouponFormInput | undefined;
+
+          if (field && !nextErrors[field]) {
+            nextErrors[field] = issue.message;
+          }
+        });
+
+        setErrors(nextErrors);
       }
 
       return {
@@ -50,8 +58,8 @@ export const useCouponForm = (initialValues: CouponFormValues) => {
   };
 
   return {
+    errors,
     isDirty,
-    titleError,
     updateField,
     validate,
     values,

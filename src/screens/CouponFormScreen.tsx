@@ -1,4 +1,14 @@
-import { Alert, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import * as ImagePicker from 'expo-image-picker';
+import {
+  Alert,
+  Image,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useCouponForm } from '../hooks/useCouponForm';
@@ -6,7 +16,32 @@ import { useCouponStore } from '../store/couponStore';
 import { colors } from '../theme/colors';
 import { spacing } from '../theme/spacing';
 import { typography } from '../theme/typography';
+import type { CouponFormInput } from '../types/coupon';
 import type { CouponFormScreenProps } from '../types/navigation';
+
+const pickImage = async () => {
+  const result = await ImagePicker.launchImageLibraryAsync({
+    allowsEditing: true,
+    mediaTypes: ImagePicker.MediaTypeOptions.Images,
+    quality: 0.85,
+  });
+
+  if (result.canceled) {
+    return undefined;
+  }
+
+  return {
+    uri: result.assets[0]?.uri ?? '',
+  };
+};
+
+const initialFormValues: CouponFormInput = {
+  bonus: false,
+  close: '23:00',
+  description: '',
+  opening: '18:00',
+  restaurant: '',
+};
 
 export const CouponFormScreen = ({ navigation, route }: CouponFormScreenProps) => {
   const couponId = route.params?.couponId;
@@ -14,13 +49,61 @@ export const CouponFormScreen = ({ navigation, route }: CouponFormScreenProps) =
     couponId ? state.getCouponById(couponId) : undefined,
   );
   const addCoupon = useCouponStore((state) => state.addCoupon);
+  const deleteCoupon = useCouponStore((state) => state.deleteCoupon);
   const updateCoupon = useCouponStore((state) => state.updateCoupon);
   const insets = useSafeAreaInsets();
 
-  const form = useCouponForm({
-    description: coupon?.description ?? '',
-    title: coupon?.title ?? '',
-  });
+  const form = useCouponForm(
+    coupon
+      ? {
+          bonus: coupon.bonus,
+          close: coupon.close,
+          description: coupon.description,
+          mealImage: coupon.mealImage,
+          opening: coupon.opening,
+          restaurant: coupon.restaurant,
+          restaurantLogo: coupon.restaurantLogo,
+        }
+      : initialFormValues,
+  );
+
+  const handleImagePick = async (
+    field: 'mealImage' | 'restaurantLogo',
+  ) => {
+    const image = await pickImage();
+
+    if (image?.uri) {
+      form.updateField(field, image);
+    }
+  };
+
+  const applyDescriptionFormat = (format: 'bold' | 'italic') => {
+    const marker = format === 'bold' ? '**' : '*';
+    const currentDescription = form.values.description.trim();
+    const nextDescription = currentDescription
+      ? `${form.values.description}${marker}texto${marker}`
+      : `${marker}texto${marker}`;
+
+    form.updateField('description', nextDescription);
+  };
+
+  const handleDelete = () => {
+    if (!couponId) {
+      return;
+    }
+
+    Alert.alert('Excluir cupom', 'Deseja excluir este card?', [
+      { style: 'cancel', text: 'Cancelar' },
+      {
+        onPress: () => {
+          deleteCoupon(couponId);
+          navigation.goBack();
+        },
+        style: 'destructive',
+        text: 'Excluir',
+      },
+    ]);
+  };
 
   const handleSubmit = () => {
     const result = form.validate();
@@ -50,28 +133,126 @@ export const CouponFormScreen = ({ navigation, route }: CouponFormScreenProps) =
   }
 
   return (
-    <View style={[styles.container, { paddingBottom: insets.bottom + spacing.lg }]}>
-      <Text style={styles.label}>Titulo *</Text>
-      <TextInput
-        autoCapitalize="sentences"
-        onChangeText={(value) => form.updateField('title', value)}
-        placeholder="Ex.: Burger artesanal em dobro"
-        placeholderTextColor={colors.textMuted}
-        style={[styles.input, form.titleError && styles.inputError]}
-        value={form.values.title}
-      />
-      {form.titleError ? <Text style={styles.error}>{form.titleError}</Text> : null}
+    <ScrollView
+      contentContainerStyle={[
+        styles.container,
+        { paddingBottom: insets.bottom + spacing.xl },
+      ]}
+      keyboardShouldPersistTaps="handled"
+    >
+      <Text style={styles.label}>Imagem do prato</Text>
+      <Pressable
+        accessibilityRole="button"
+        onPress={() => handleImagePick('mealImage')}
+        style={styles.imagePicker}
+      >
+        {form.values.mealImage ? (
+          <Image source={{ uri: form.values.mealImage.uri }} style={styles.mealPreview} />
+        ) : (
+          <Text style={styles.imagePickerText}>Selecionar PNG do prato</Text>
+        )}
+      </Pressable>
 
-      <Text style={styles.label}>Descricao</Text>
+      <Pressable
+        accessibilityRole="checkbox"
+        accessibilityState={{ checked: form.values.bonus }}
+        onPress={() => form.updateField('bonus', !form.values.bonus)}
+        style={styles.checkboxRow}
+      >
+        <View style={[styles.checkbox, form.values.bonus && styles.checkboxChecked]}>
+          {form.values.bonus ? <Text style={styles.checkboxMark}>✓</Text> : null}
+        </View>
+        <Text style={styles.checkboxLabel}>Adicionar promoção</Text>
+      </Pressable>
+
+      <Text style={styles.label}>Logomarca do restaurante</Text>
+      <Pressable
+        accessibilityRole="button"
+        onPress={() => handleImagePick('restaurantLogo')}
+        style={[styles.imagePicker, styles.logoPicker]}
+      >
+        {form.values.restaurantLogo ? (
+          <Image
+            source={{ uri: form.values.restaurantLogo.uri }}
+            style={styles.logoPreview}
+          />
+        ) : (
+          <Text style={styles.imagePickerText}>Selecionar PNG da logo</Text>
+        )}
+      </Pressable>
+
+      <Text style={styles.label}>Restaurante *</Text>
+      <TextInput
+        autoCapitalize="words"
+        onChangeText={(value) => form.updateField('restaurant', value)}
+        placeholder="Ex.: Parma Pizza"
+        placeholderTextColor={colors.textMuted}
+        style={[styles.input, form.errors.restaurant && styles.inputError]}
+        value={form.values.restaurant}
+      />
+      {form.errors.restaurant ? (
+        <Text style={styles.error}>{form.errors.restaurant}</Text>
+      ) : null}
+
+      <Text style={styles.label}>Promocao *</Text>
+      <View style={styles.formatToolbar}>
+        <Pressable
+          onPress={() => applyDescriptionFormat('bold')}
+          style={styles.formatButton}
+        >
+          <Text style={styles.formatBold}>B</Text>
+        </Pressable>
+        <Pressable
+          onPress={() => applyDescriptionFormat('italic')}
+          style={styles.formatButton}
+        >
+          <Text style={styles.formatItalic}>I</Text>
+        </Pressable>
+      </View>
       <TextInput
         multiline
         onChangeText={(value) => form.updateField('description', value)}
-        placeholder="Descreva as regras principais do cupom"
+        placeholder="Ex.: Na compra de **um rodizio** ganhe outro igual."
         placeholderTextColor={colors.textMuted}
-        style={[styles.input, styles.textArea]}
+        style={[styles.input, styles.textArea, form.errors.description && styles.inputError]}
         textAlignVertical="top"
         value={form.values.description}
       />
+      {form.errors.description ? (
+        <Text style={styles.error}>{form.errors.description}</Text>
+      ) : null}
+
+      <View style={styles.timeRow}>
+        <View style={styles.timeField}>
+          <Text style={styles.label}>Abertura *</Text>
+          <TextInput
+            keyboardType="numbers-and-punctuation"
+            onChangeText={(value) => form.updateField('opening', value)}
+            placeholder="18:00"
+            placeholderTextColor={colors.textMuted}
+            style={[styles.input, form.errors.opening && styles.inputError]}
+            value={form.values.opening}
+          />
+          {form.errors.opening ? (
+            <Text style={styles.error}>{form.errors.opening}</Text>
+          ) : null}
+        </View>
+
+        <View style={styles.timeField}>
+          <Text style={styles.label}>Fechamento *</Text>
+          <TextInput
+            keyboardType="numbers-and-punctuation"
+            onChangeText={(value) => form.updateField('close', value)}
+            placeholder="23:00"
+            placeholderTextColor={colors.textMuted}
+            style={[styles.input, form.errors.close && styles.inputError]}
+            value={form.values.close}
+          />
+          {form.errors.close ? (
+            <Text style={styles.error}>{form.errors.close}</Text>
+          ) : null}
+        </View>
+      </View>
 
       <Pressable
         accessibilityRole="button"
@@ -79,45 +260,78 @@ export const CouponFormScreen = ({ navigation, route }: CouponFormScreenProps) =
         style={({ pressed }) => [styles.button, pressed && styles.buttonPressed]}
       >
         <Text style={styles.buttonText}>
-          {couponId ? 'Salvar cupom' : 'Criar cupom'}
+          {couponId ? 'Salvar card' : 'Criar card'}
         </Text>
       </Pressable>
 
-      {form.isDirty ? null : (
-        <Pressable
-          onPress={() =>
-            Alert.alert('Sem alteracoes', 'Edite algum campo antes de salvar.')
-          }
-          style={styles.secondaryButton}
-        >
-          <Text style={styles.secondaryButtonText}>Formulario sem alteracoes</Text>
+      {couponId ? (
+        <Pressable onPress={handleDelete} style={styles.deleteButton}>
+          <Text style={styles.deleteButtonText}>Excluir card</Text>
         </Pressable>
-      )}
-    </View>
+      ) : null}
+    </ScrollView>
   );
 };
 
 const styles = StyleSheet.create({
   button: {
     alignItems: 'center',
-    backgroundColor: colors.primary,
+    backgroundColor: colors.login,
     borderRadius: 10,
     height: 52,
     justifyContent: 'center',
     marginTop: spacing.lg,
   },
   buttonPressed: {
-    backgroundColor: colors.primaryDark,
+    opacity: 0.8,
   },
   buttonText: {
     color: colors.surface,
+    fontFamily: typography.family.bold,
     fontSize: typography.body,
-    fontWeight: '800',
+  },
+  checkbox: {
+    alignItems: 'center',
+    borderColor: colors.placeholder,
+    borderRadius: 4,
+    borderWidth: 1,
+    height: 22,
+    justifyContent: 'center',
+    width: 22,
+  },
+  checkboxChecked: {
+    backgroundColor: colors.login,
+    borderColor: colors.login,
+  },
+  checkboxLabel: {
+    color: colors.surface,
+    fontFamily: typography.family.semiBold,
+    fontSize: typography.body,
+  },
+  checkboxMark: {
+    color: colors.surface,
+    fontFamily: typography.family.bold,
+    fontSize: 14,
+    lineHeight: 18,
+  },
+  checkboxRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: spacing.sm,
+    marginTop: spacing.md,
   },
   container: {
     backgroundColor: colors.background,
-    flex: 1,
     padding: spacing.md,
+  },
+  deleteButton: {
+    alignItems: 'center',
+    padding: spacing.md,
+  },
+  deleteButtonText: {
+    color: colors.primary,
+    fontFamily: typography.family.bold,
+    fontSize: typography.body,
   },
   emptyState: {
     alignItems: 'center',
@@ -127,16 +341,57 @@ const styles = StyleSheet.create({
     padding: spacing.lg,
   },
   emptyTitle: {
-    color: colors.text,
+    color: colors.surface,
+    fontFamily: typography.family.bold,
     fontSize: typography.subtitle,
-    fontWeight: '800',
     marginBottom: spacing.md,
   },
   error: {
-    color: colors.primary,
+    color: colors.login,
+    fontFamily: typography.family.semiBold,
     fontSize: typography.caption,
-    fontWeight: '700',
     marginTop: spacing.xs,
+  },
+  formatBold: {
+    color: colors.surface,
+    fontFamily: typography.family.bold,
+    fontSize: typography.body,
+  },
+  formatButton: {
+    alignItems: 'center',
+    backgroundColor: colors.header,
+    borderColor: colors.placeholder,
+    borderRadius: 8,
+    borderWidth: 1,
+    height: 36,
+    justifyContent: 'center',
+    width: 42,
+  },
+  formatItalic: {
+    color: colors.surface,
+    fontFamily: typography.family.semiBold,
+    fontSize: typography.body,
+    fontStyle: 'italic',
+  },
+  formatToolbar: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+    marginBottom: spacing.sm,
+  },
+  imagePicker: {
+    alignItems: 'center',
+    backgroundColor: colors.header,
+    borderColor: colors.placeholder,
+    borderRadius: 10,
+    borderWidth: 1,
+    height: 124,
+    justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  imagePickerText: {
+    color: colors.surface,
+    fontFamily: typography.family.semiBold,
+    fontSize: typography.body,
   },
   input: {
     backgroundColor: colors.surface,
@@ -144,31 +399,55 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     borderWidth: 1,
     color: colors.text,
+    fontFamily: typography.family.regular,
     fontSize: typography.body,
     minHeight: 48,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
   },
   inputError: {
-    borderColor: colors.primary,
+    borderColor: colors.login,
   },
   label: {
-    color: colors.text,
+    color: colors.surface,
+    fontFamily: typography.family.bold,
     fontSize: typography.body,
-    fontWeight: '800',
     marginBottom: spacing.sm,
     marginTop: spacing.md,
+  },
+  logoPicker: {
+    alignSelf: 'flex-start',
+    borderRadius: 54,
+    height: 108,
+    width: 108,
+  },
+  logoPreview: {
+    height: 108,
+    resizeMode: 'cover',
+    width: 108,
+  },
+  mealPreview: {
+    height: 124,
+    resizeMode: 'cover',
+    width: '100%',
   },
   secondaryButton: {
     alignItems: 'center',
     padding: spacing.md,
   },
   secondaryButtonText: {
-    color: colors.textMuted,
+    color: colors.surface,
+    fontFamily: typography.family.bold,
     fontSize: typography.body,
-    fontWeight: '700',
   },
   textArea: {
     minHeight: 132,
+  },
+  timeField: {
+    flex: 1,
+  },
+  timeRow: {
+    flexDirection: 'row',
+    gap: spacing.md,
   },
 });

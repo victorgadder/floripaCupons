@@ -7,6 +7,10 @@ import {
   Poppins_700Bold,
   useFonts,
 } from '@expo-google-fonts/poppins';
+import {
+  Inter_400Regular,
+  Inter_600SemiBold,
+} from '@expo-google-fonts/inter';
 
 import { AppNavigator } from './src/navigation/AppNavigator';
 
@@ -16,6 +20,8 @@ export default function App() {
     Poppins_500Medium,
     Poppins_600SemiBold,
     Poppins_700Bold,
+    Inter_400Regular,
+    Inter_600SemiBold,
   });
 
   if (!fontsLoaded) {

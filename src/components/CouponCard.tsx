@@ -1,7 +1,8 @@
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 
+import BonusIcon from '../../assets/icons/bonus.svg';
+import HeartIcon from '../../assets/icons/heart.svg';
 import { colors } from '../theme/colors';
-import { spacing } from '../theme/spacing';
 import { typography } from '../theme/typography';
 import type { Coupon } from '../types/coupon';
 
@@ -10,122 +11,221 @@ type CouponCardProps = {
   onPress: () => void;
 };
 
+type DescriptionSegment = {
+  text: string;
+  bold?: boolean;
+  italic?: boolean;
+};
+
+const parseDescription = (description: string): DescriptionSegment[] => {
+  const segments: DescriptionSegment[] = [];
+  const regex = /(\*\*[^*]+\*\*|\*[^*]+\*)/g;
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+
+  while ((match = regex.exec(description))) {
+    if (match.index > lastIndex) {
+      segments.push({ text: description.slice(lastIndex, match.index) });
+    }
+
+    const token = match[0];
+    const bold = token.startsWith('**');
+    segments.push({
+      bold,
+      italic: !bold,
+      text: bold ? token.slice(2, -2) : token.slice(1, -1),
+    });
+
+    lastIndex = regex.lastIndex;
+  }
+
+  if (lastIndex < description.length) {
+    segments.push({ text: description.slice(lastIndex) });
+  }
+
+  return segments;
+};
+
+const getOpeningStatus = ({ close, opening }: Pick<Coupon, 'close' | 'opening'>) => {
+  const now = new Date();
+  const currentMinutes = now.getHours() * 60 + now.getMinutes();
+  const [openingHours, openingMinutes] = opening.split(':').map(Number);
+  const [closeHours, closeMinutes] = close.split(':').map(Number);
+  const openingTotal = openingHours * 60 + openingMinutes;
+  const closeTotal = closeHours * 60 + closeMinutes;
+  const isOpen =
+    openingTotal <= closeTotal
+      ? currentMinutes >= openingTotal && currentMinutes <= closeTotal
+      : currentMinutes >= openingTotal || currentMinutes <= closeTotal;
+
+  return isOpen ? 'Aberto' : 'Fechado';
+};
+
 export const CouponCard = ({ coupon, onPress }: CouponCardProps) => (
   <Pressable
     accessibilityRole="button"
     onPress={onPress}
     style={({ pressed }) => [styles.card, pressed && styles.pressed]}
   >
-    <View style={styles.imagePlaceholder}>
-      <Text style={styles.imageText}>{coupon.benefitLabel}</Text>
+    <View style={styles.imageArea}>
+      {coupon.mealImage ? (
+        <Image source={{ uri: coupon.mealImage.uri }} style={styles.mealImage} />
+      ) : (
+        <View style={styles.mealPlaceholder}>
+          <Text style={styles.mealPlaceholderText}>Imagem do prato</Text>
+        </View>
+      )}
+      {coupon.bonus ? (
+        <BonusIcon height={64} style={styles.bonusIcon} width={102} />
+      ) : null}
+    </View>
+
+    <View style={styles.logoWrapper}>
+      {coupon.restaurantLogo ? (
+        <Image
+          source={{ uri: coupon.restaurantLogo.uri }}
+          style={styles.restaurantLogo}
+        />
+      ) : (
+        <Text style={styles.logoFallback}>
+          {coupon.restaurant.slice(0, 2).toUpperCase()}
+        </Text>
+      )}
     </View>
 
     <View style={styles.content}>
-      <View style={styles.header}>
-        <Text numberOfLines={1} style={styles.partner}>
-          {coupon.partnerName}
-        </Text>
-        <Text style={styles.favorite}>{coupon.isFavorite ? 'S2' : '+'}</Text>
-      </View>
-
-      <Text numberOfLines={2} style={styles.title}>
-        {coupon.title}
+      <HeartIcon color={colors.surface} height={28} style={styles.heart} width={28} />
+      <Text numberOfLines={1} style={styles.restaurant}>
+        {coupon.restaurant}
       </Text>
-
-      <Text numberOfLines={2} style={styles.description}>
-        {coupon.description ?? 'Cupom exclusivo Floripa em Dobro.'}
+      <Text numberOfLines={3} style={styles.description}>
+        {parseDescription(coupon.description).map((segment, index) => (
+          <Text
+            key={`${segment.text}-${index}`}
+            style={[
+              segment.bold && styles.boldDescription,
+              segment.italic && styles.italicDescription,
+            ]}
+          >
+            {segment.text}
+          </Text>
+        ))}
       </Text>
-
-      <View style={styles.footer}>
-        <Text style={styles.meta}>{coupon.category}</Text>
-        <Text style={styles.dot}>-</Text>
-        <Text style={styles.meta}>{coupon.distanceLabel}</Text>
-      </View>
-      <Text style={styles.expiration}>{coupon.expiresAtLabel}</Text>
+      <Text style={styles.status}>{getOpeningStatus(coupon)}</Text>
     </View>
   </Pressable>
 );
 
 const styles = StyleSheet.create({
+  boldDescription: {
+    fontFamily: typography.family.bold,
+  },
+  bonusIcon: {
+    left: 0,
+    position: 'absolute',
+    top: 0,
+  },
   card: {
-    backgroundColor: colors.surface,
-    borderColor: colors.border,
-    borderRadius: 14,
+    backgroundColor: colors.header,
+    borderColor: colors.placeholder,
+    borderRadius: 8,
     borderWidth: 1,
     flexDirection: 'row',
-    gap: spacing.md,
-    padding: spacing.md,
+    height: 156,
+    overflow: 'hidden',
+    position: 'relative',
   },
   content: {
     flex: 1,
-    minWidth: 0,
+    justifyContent: 'center',
+    paddingLeft: 12,
+    paddingRight: 14,
+    paddingTop: 24,
   },
   description: {
-    color: colors.textMuted,
-    fontSize: typography.body,
-    lineHeight: 20,
-    marginTop: spacing.xs,
+    color: colors.surface,
+    fontFamily: typography.family.regular,
+    fontSize: 11,
+    lineHeight: 15,
+    marginTop: 6,
   },
-  dot: {
-    color: colors.textMuted,
-    fontSize: typography.caption,
+  heart: {
+    position: 'absolute',
+    right: 13,
+    top: 12,
   },
-  expiration: {
-    color: colors.success,
-    fontSize: typography.caption,
-    fontWeight: '700',
-    marginTop: spacing.sm,
+  imageArea: {
+    height: 156,
+    overflow: 'hidden',
+    width: 184,
   },
-  favorite: {
+  italicDescription: {
+    fontStyle: 'italic',
+  },
+  logoFallback: {
     color: colors.primary,
-    fontSize: typography.caption,
-    fontWeight: '800',
+    fontFamily: typography.family.bold,
+    fontSize: 10,
   },
-  footer: {
+  logoWrapper: {
     alignItems: 'center',
-    flexDirection: 'row',
-    gap: spacing.xs,
-    marginTop: spacing.sm,
-  },
-  header: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  imagePlaceholder: {
-    alignItems: 'center',
-    aspectRatio: 1,
-    backgroundColor: '#FFE8E9',
-    borderRadius: 12,
+    backgroundColor: colors.surface,
+    borderRadius: 22,
+    height: 44,
     justifyContent: 'center',
-    width: 86,
+    left: 166,
+    overflow: 'hidden',
+    position: 'absolute',
+    top: 20,
+    width: 44,
+    zIndex: 2,
   },
-  imageText: {
-    color: colors.primaryDark,
-    fontSize: typography.caption,
-    fontWeight: '800',
+  mealImage: {
+    height: 156,
+    resizeMode: 'cover',
+    width: 184,
+  },
+  mealPlaceholder: {
+    alignItems: 'center',
+    backgroundColor: '#FFE3E4',
+    height: 156,
+    justifyContent: 'center',
+    width: 184,
+  },
+  mealPlaceholderText: {
+    color: colors.primary,
+    fontFamily: typography.family.bold,
+    fontSize: 12,
     textAlign: 'center',
   },
-  meta: {
-    color: colors.textMuted,
-    fontSize: typography.caption,
-    fontWeight: '600',
-  },
-  partner: {
-    color: colors.textMuted,
-    flex: 1,
-    fontSize: typography.caption,
-    fontWeight: '700',
-    textTransform: 'uppercase',
-  },
   pressed: {
-    opacity: 0.72,
+    opacity: 0.8,
   },
-  title: {
-    color: colors.text,
-    fontSize: typography.subtitle,
-    fontWeight: '800',
-    lineHeight: 23,
-    marginTop: spacing.xs,
+  restaurant: {
+    color: colors.surface,
+    fontFamily: typography.family.bold,
+    fontSize: 14,
+    lineHeight: 18,
+    paddingRight: 36,
+  },
+  restaurantLogo: {
+    height: 44,
+    resizeMode: 'cover',
+    width: 44,
+  },
+  status: {
+    alignSelf: 'flex-end',
+    backgroundColor: colors.placeholder,
+    borderRadius: 8,
+    color: colors.surface,
+    fontFamily: typography.family.bold,
+    fontSize: 9,
+    lineHeight: 12,
+    marginTop: 12,
+    minWidth: 68,
+    overflow: 'hidden',
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    textAlign: 'center',
   },
 });

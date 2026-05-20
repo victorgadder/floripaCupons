@@ -8,20 +8,24 @@ import type { Coupon, CouponFormInput, CouponId } from '../types/coupon';
 type CouponState = {
   coupons: Coupon[];
   addCoupon: (input: CouponFormInput) => void;
-  updateCoupon: (couponId: CouponId, input: CouponFormInput) => void;
+  deleteCoupon: (couponId: CouponId) => void;
   getCouponById: (couponId: CouponId) => Coupon | undefined;
+  updateCoupon: (couponId: CouponId, input: CouponFormInput) => void;
 };
+
+const normalizeCouponInput = (input: CouponFormInput): CouponFormInput => ({
+  bonus: input.bonus,
+  mealImage: input.mealImage,
+  restaurantLogo: input.restaurantLogo,
+  restaurant: input.restaurant.trim(),
+  description: input.description.trim(),
+  opening: input.opening.trim(),
+  close: input.close.trim(),
+});
 
 const createCoupon = (input: CouponFormInput): Coupon => ({
   id: `coupon-${Date.now()}`,
-  title: input.title.trim(),
-  description: input.description?.trim() || undefined,
-  partnerName: 'Novo parceiro',
-  category: 'Cupom local',
-  distanceLabel: '0 km',
-  benefitLabel: 'Novo',
-  expiresAtLabel: 'Sem validade definida',
-  isFavorite: false,
+  ...normalizeCouponInput(input),
 });
 
 export const useCouponStore = create<CouponState>()(
@@ -33,24 +37,28 @@ export const useCouponStore = create<CouponState>()(
           coupons: [createCoupon(input), ...state.coupons],
         }));
       },
+      deleteCoupon: (couponId) => {
+        set((state) => ({
+          coupons: state.coupons.filter((coupon) => coupon.id !== couponId),
+        }));
+      },
+      getCouponById: (couponId) =>
+        get().coupons.find((coupon) => coupon.id === couponId),
       updateCoupon: (couponId, input) => {
         set((state) => ({
           coupons: state.coupons.map((coupon) =>
             coupon.id === couponId
               ? {
                   ...coupon,
-                  title: input.title.trim(),
-                  description: input.description?.trim() || undefined,
+                  ...normalizeCouponInput(input),
                 }
               : coupon,
           ),
         }));
       },
-      getCouponById: (couponId) =>
-        get().coupons.find((coupon) => coupon.id === couponId),
     }),
     {
-      name: 'floripa-cupons:coupons',
+      name: 'floripa-cupons:coupon-cards',
       storage: createJSONStorage(() => AsyncStorage),
     },
   ),

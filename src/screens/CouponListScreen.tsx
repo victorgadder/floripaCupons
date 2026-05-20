@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import {
   FlatList,
+  Image,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -12,6 +13,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { SvgProps } from 'react-native-svg';
 
 import BarButecoIcon from '../../assets/icons/barButeco.svg';
+import ConfigCupomIcon from '../../assets/icons/configCupom.svg';
+import CupomIcon from '../../assets/icons/cupom.svg';
 import ExtraIcon from '../../assets/icons/extra.svg';
 import HamburgueriaIcon from '../../assets/icons/hamburgueria.svg';
 import OrientalIcon from '../../assets/icons/oriental.svg';
@@ -43,6 +46,8 @@ type Category = {
 };
 
 const HEADER_HEIGHT = 158;
+const FOOTER_HEIGHT = 93;
+const PAGE_SIZE = 4;
 const SEARCH_HEIGHT = 27;
 const SEARCH_WIDTH = 290;
 
@@ -60,6 +65,8 @@ export const CouponListScreen = ({ navigation }: CouponListScreenProps) => {
   const coupons = useCouponStore((state) => state.coupons);
   const insets = useSafeAreaInsets();
   const [selectedCategory, setSelectedCategory] = useState<CategoryId>('todos');
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+  const visibleCoupons = coupons.slice(0, visibleCount);
 
   return (
     <View style={styles.container}>
@@ -114,13 +121,25 @@ export const CouponListScreen = ({ navigation }: CouponListScreenProps) => {
       </View>
 
       <FlatList
+        ListHeaderComponent={
+          <Image
+            source={require('../../assets/banner.png')}
+            style={styles.banner}
+          />
+        }
         contentContainerStyle={[
           styles.listContent,
-          { paddingBottom: insets.bottom + spacing.xl },
+          { paddingBottom: FOOTER_HEIGHT + insets.bottom + spacing.md },
         ]}
-        data={coupons}
+        data={visibleCoupons}
         ItemSeparatorComponent={() => <View style={styles.separator} />}
         keyExtractor={(coupon) => coupon.id}
+        onEndReached={() =>
+          setVisibleCount((currentCount) =>
+            Math.min(currentCount + PAGE_SIZE, coupons.length),
+          )
+        }
+        onEndReachedThreshold={0.6}
         renderItem={({ item }) => (
           <CouponCard
             coupon={item}
@@ -133,35 +152,58 @@ export const CouponListScreen = ({ navigation }: CouponListScreenProps) => {
         )}
       />
 
-      <Pressable
-        accessibilityRole="button"
-        onPress={() => navigation.navigate('CouponForm')}
-        style={({ pressed }) => [
-          styles.fab,
-          { bottom: insets.bottom + spacing.lg },
-          pressed && styles.fabPressed,
-        ]}
-      >
-        <Text style={styles.fabText}>+</Text>
-      </Pressable>
+      <View style={styles.footer}>
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => undefined}
+          style={({ pressed }) => [styles.footerButton, pressed && styles.pressed]}
+        >
+          <CupomIcon color={colors.selected} height={24} width={24} />
+          <Text style={[styles.footerLabel, styles.footerLabelSelected]}>
+            Cupons
+          </Text>
+        </Pressable>
+
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => navigation.navigate('CouponForm')}
+          style={({ pressed }) => [styles.footerButton, pressed && styles.pressed]}
+        >
+          <ConfigCupomIcon color={colors.surface} height={24} width={24} />
+          <Text style={styles.footerLabel}>Gerir</Text>
+        </Pressable>
+      </View>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
+  banner: {
+    borderColor: colors.selected,
+    borderRadius: 8,
+    borderWidth: 1,
+    height: 203,
+    marginBottom: 10,
+    resizeMode: 'cover',
+    width: '100%',
+  },
   categoryButton: {
     alignItems: 'center',
     height: 83,
     justifyContent: 'flex-end',
-    width: 68,
+    minWidth: 60,
   },
   categoryCarousel: {
     backgroundColor: colors.background,
-    height: 83,
+    borderBottomColor: colors.placeholder,
+    borderBottomWidth: 1,
+    height: 90,
   },
   categoryContent: {
     alignItems: 'flex-end',
-    paddingHorizontal: 12,
+    columnGap: 16,
+    paddingHorizontal: 6,
+    paddingBottom: 6,
   },
   categoryIconBox: {
     alignItems: 'center',
@@ -170,44 +212,49 @@ const styles = StyleSheet.create({
     width: 60,
   },
   categoryLabel: {
-    fontFamily: typography.family.bold,
-    fontSize: 7,
+    fontFamily: typography.family.semiBold,
+    fontSize: 9,
     lineHeight: 10,
     marginBottom: 6,
-    marginTop: 2,
+    marginTop: 5,
     textAlign: 'center',
   },
   container: {
     backgroundColor: colors.background,
     flex: 1,
   },
-  fab: {
+  footer: {
     alignItems: 'center',
-    backgroundColor: colors.primary,
-    borderRadius: 28,
-    elevation: 4,
-    height: 56,
-    justifyContent: 'center',
+    backgroundColor: colors.header,
+    bottom: 0,
+    flexDirection: 'row',
+    height: FOOTER_HEIGHT,
+    justifyContent: 'space-around',
+    left: 0,
     position: 'absolute',
-    right: spacing.lg,
-    shadowColor: '#000000',
-    shadowOffset: { height: 4, width: 0 },
-    shadowOpacity: 0.18,
-    shadowRadius: 8,
-    width: 56,
+    right: 0,
   },
-  fabPressed: {
-    backgroundColor: colors.primaryDark,
+  footerButton: {
+    alignItems: 'center',
+    flex: 1,
+    gap: 5,
+    height: 60,
+    justifyContent: 'center',
   },
-  fabText: {
+  footerLabel: {
     color: colors.surface,
-    fontFamily: typography.family.semiBold,
-    fontSize: 30,
-    marginTop: -2,
+    fontFamily: typography.family.interRegular,
+    fontSize: 10,
+    lineHeight: 14,
+    minWidth: 48,
+    textAlign: 'center',
+  },
+  footerLabelSelected: {
+    color: colors.selected,
+    fontFamily: typography.family.interSemiBold,
   },
   listContent: {
-    paddingHorizontal: 21,
-    paddingTop: 0,
+    padding: 16,
   },
   loginButton: {
     alignItems: 'center',
@@ -254,7 +301,7 @@ const styles = StyleSheet.create({
     marginHorizontal: 6,
   },
   separator: {
-    height: spacing.md,
+    height: 10,
   },
   topSection: {
     backgroundColor: colors.header,
