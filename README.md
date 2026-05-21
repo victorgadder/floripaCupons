@@ -133,6 +133,24 @@ Ou diretamente no Android:
 npm run android
 ```
 
+## Gerar APK
+
+O projeto está configurado para gerar um APK instalável pelo EAS Build usando o perfil `preview`.
+
+Faça login no EAS:
+
+```bash
+npx eas-cli login
+```
+
+Depois gere o APK:
+
+```bash
+npm run build:android:apk
+```
+
+Ao final do build, o EAS fornece um link para baixar o APK. Baixe o arquivo no celular ou transfira via cabo e instale normalmente. Talvez seja necessário permitir instalação de apps de fontes desconhecidas no Android.
+
 ## Testes
 
 Execute:

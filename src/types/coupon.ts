@@ -1,8 +1,12 @@
+import type { ImageRequireSource } from 'react-native';
+
 export type CouponId = string;
 
-export type CouponImage = {
+export type RemoteCouponImage = {
   uri: string;
 };
+
+export type CouponImage = RemoteCouponImage | ImageRequireSource;
 
 export type Coupon = {
   id: CouponId;

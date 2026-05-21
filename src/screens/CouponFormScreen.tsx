@@ -23,7 +23,7 @@ import { useCouponStore } from '../store/couponStore';
 import { colors } from '../theme/colors';
 import { spacing } from '../theme/spacing';
 import { typography } from '../theme/typography';
-import type { CouponFormInput, CouponImage } from '../types/coupon';
+import type { CouponFormInput, RemoteCouponImage } from '../types/coupon';
 import type { CouponFormScreenProps } from '../types/navigation';
 
 const timeOptions: string[] = Array.from({ length: 48 }, (_, index) => {
@@ -33,7 +33,7 @@ const timeOptions: string[] = Array.from({ length: 48 }, (_, index) => {
   return `${String(hours).padStart(2, '0')}:${minutes}`;
 });
 
-const pickImage = async (): Promise<CouponImage | undefined> => {
+const pickImage = async (): Promise<RemoteCouponImage | undefined> => {
   const documentResult = await DocumentPicker.getDocumentAsync({
     copyToCacheDirectory: true,
     multiple: false,
@@ -49,7 +49,7 @@ const pickImage = async (): Promise<CouponImage | undefined> => {
   return undefined;
 };
 
-const pickImageFromLibrary = async (): Promise<CouponImage | undefined> => {
+const pickImageFromLibrary = async (): Promise<RemoteCouponImage | undefined> => {
   const result = await ImagePicker.launchImageLibraryAsync({
     allowsEditing: true,
     mediaTypes: ['images'],
@@ -342,7 +342,7 @@ export const CouponFormScreen = ({ navigation, route }: CouponFormScreenProps) =
         style={styles.imagePicker}
       >
         {form.values.mealImage ? (
-          <Image source={{ uri: form.values.mealImage.uri }} style={styles.mealPreview} />
+          <Image source={form.values.mealImage} style={styles.mealPreview} />
         ) : (
           <Text style={styles.imagePickerText}>Selecionar PNG do prato</Text>
         )}
@@ -375,7 +375,7 @@ export const CouponFormScreen = ({ navigation, route }: CouponFormScreenProps) =
       >
         {form.values.restaurantLogo ? (
           <Image
-            source={{ uri: form.values.restaurantLogo.uri }}
+            source={form.values.restaurantLogo}
             style={styles.logoPreview}
           />
         ) : (

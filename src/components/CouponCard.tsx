@@ -139,7 +139,7 @@ export const CouponCard = ({
     >
       <View style={styles.imageArea}>
         {coupon.mealImage ? (
-          <Image source={{ uri: coupon.mealImage.uri }} style={styles.mealImage} />
+          <Image source={coupon.mealImage} style={styles.mealImage} />
         ) : (
           <View style={styles.mealPlaceholder}>
             <Text style={styles.mealPlaceholderText}>Imagem do prato</Text>
@@ -153,7 +153,7 @@ export const CouponCard = ({
       <View style={styles.logoWrapper}>
         {coupon.restaurantLogo ? (
           <Image
-            source={{ uri: coupon.restaurantLogo.uri }}
+            source={coupon.restaurantLogo}
             style={styles.restaurantLogo}
           />
         ) : (

@@ -248,6 +248,7 @@ export const CouponListScreen = ({ navigation }: CouponListProps) => {
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const [isDraggingCard, setIsDraggingCard] = useState(false);
   const bannerWidth = width - LIST_HORIZONTAL_PADDING * 2;
+  const footerHeight = FOOTER_HEIGHT + insets.bottom;
   const displayableCoupons = coupons.filter(isCouponReadyToDisplay);
   const listCoupons =
     screenMode === 'manage'
@@ -370,7 +371,7 @@ export const CouponListScreen = ({ navigation }: CouponListProps) => {
         }
         contentContainerStyle={[
           styles.listContent,
-          { paddingBottom: FOOTER_HEIGHT + insets.bottom + spacing.md },
+          { paddingBottom: footerHeight + spacing.md },
         ]}
         data={listCoupons}
         ItemSeparatorComponent={() => <View style={styles.separator} />}
@@ -430,7 +431,15 @@ export const CouponListScreen = ({ navigation }: CouponListProps) => {
         )}
       />
 
-      <View style={styles.footer}>
+      <View
+        style={[
+          styles.footer,
+          {
+            height: footerHeight,
+            paddingBottom: insets.bottom,
+          },
+        ]}
+      >
         <Pressable
           accessibilityRole="button"
           onPress={() => setScreenMode('coupons')}

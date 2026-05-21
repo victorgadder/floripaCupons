@@ -43,9 +43,14 @@ const isPersistedCouponState = (
 
 const normalizePersistedCoupon = (coupon: PersistedCoupon): Coupon => {
   const { restaurant, ...currentCoupon } = coupon;
+  const mockedCoupon = mockedCoupons.find(
+    (mockedItem) => mockedItem.id === currentCoupon.id,
+  );
 
   return {
     ...currentCoupon,
+    mealImage: currentCoupon.mealImage ?? mockedCoupon?.mealImage,
+    restaurantLogo: currentCoupon.restaurantLogo ?? mockedCoupon?.restaurantLogo,
     title: coupon.title || restaurant || '',
   };
 };

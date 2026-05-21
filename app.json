@@ -1,34 +1,41 @@
 {
   "expo": {
-    "name": "floripaCupons",
-    "slug": "floripaCupons",
+    "name": "Floripa Cupons",
+    "slug": "floripa-cupons",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
+    "icon": "./assets/victor-gadder-icon.png",
     "userInterfaceStyle": "light",
     "splash": {
-      "image": "./assets/splash-icon.png",
+      "image": "./assets/victor-gadder-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
+      "backgroundColor": "#2C2622"
     },
     "ios": {
       "supportsTablet": true
     },
     "android": {
+      "package": "com.victorgadder.floripacupons",
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
-        "foregroundImage": "./assets/android-icon-foreground.png",
-        "backgroundImage": "./assets/android-icon-background.png",
-        "monochromeImage": "./assets/android-icon-monochrome.png"
+        "backgroundColor": "#2C2622",
+        "foregroundImage": "./assets/victor-gadder-icon.png",
+        "monochromeImage": "./assets/victor-gadder-icon.png"
       },
+      "edgeToEdgeEnabled": false,
       "predictiveBackGestureEnabled": false,
       "softwareKeyboardLayoutMode": "resize"
     },
     "web": {
-      "favicon": "./assets/favicon.png"
+      "favicon": "./assets/victor-gadder-icon.png"
     },
     "plugins": [
       "expo-font"
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "94d5110d-8da6-44c1-8251-0b7270876ee0"
+      }
+    },
+    "owner": "victorgadder"
   }
 }
