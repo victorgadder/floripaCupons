@@ -3,6 +3,10 @@ import * as ImagePicker from 'expo-image-picker';
 import {
   Alert,
   Image,
+  Keyboard,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -10,6 +14,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { useRef, useState } from 'react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useCouponForm } from '../hooks/useCouponForm';
@@ -19,6 +24,13 @@ import { spacing } from '../theme/spacing';
 import { typography } from '../theme/typography';
 import type { CouponFormInput } from '../types/coupon';
 import type { CouponFormScreenProps } from '../types/navigation';
+
+const timeOptions = Array.from({ length: 48 }, (_, index) => {
+  const hours = Math.floor(index / 2);
+  const minutes = index % 2 === 0 ? '00' : '30';
+
+  return `${String(hours).padStart(2, '0')}:${minutes}`;
+});
 
 const pickImage = async () => {
   const documentResult = await DocumentPicker.getDocumentAsync({
@@ -61,7 +73,12 @@ const initialFormValues: CouponFormInput = {
   restaurantURL: '',
 };
 
+type EditableField = 'restaurant' | 'restaurantURL' | 'description';
+
 export const CouponFormScreen = ({ navigation, route }: CouponFormScreenProps) => {
+  const [timePickerField, setTimePickerField] = useState<
+    'opening' | 'close' | null
+  >(null);
   const couponId = route.params?.couponId;
   const coupon = useCouponStore((state) =>
     couponId ? state.getCouponById(couponId) : undefined,
@@ -70,6 +87,14 @@ export const CouponFormScreen = ({ navigation, route }: CouponFormScreenProps) =
   const deleteCoupon = useCouponStore((state) => state.deleteCoupon);
   const updateCoupon = useCouponStore((state) => state.updateCoupon);
   const insets = useSafeAreaInsets();
+  const scrollViewRef = useRef<ScrollView>(null);
+  const restaurantInputRef = useRef<TextInput>(null);
+  const restaurantUrlInputRef = useRef<TextInput>(null);
+  const descriptionInputRef = useRef<TextInput>(null);
+  const [descriptionSelection, setDescriptionSelection] = useState({
+    end: 0,
+    start: 0,
+  });
 
   const form = useCouponForm(
     coupon
@@ -82,16 +107,46 @@ export const CouponFormScreen = ({ navigation, route }: CouponFormScreenProps) =
           restaurant: coupon.restaurant,
           restaurantLogo: coupon.restaurantLogo,
           restaurantURL: coupon.restaurantURL ?? '',
-        }
+      }
       : initialFormValues,
   );
+  const [descriptionDraft, setDescriptionDraft] = useState(
+    form.values.description,
+  );
+  const [descriptionInputKey, setDescriptionInputKey] = useState(0);
+
+  const blurTextInputs = () => {
+    restaurantInputRef.current?.blur();
+    restaurantUrlInputRef.current?.blur();
+    descriptionInputRef.current?.blur();
+    Keyboard.dismiss();
+  };
+
+  const scrollToField = (field: EditableField) => {
+    const fieldOffsets: Record<EditableField, number> = {
+      description: 430,
+      restaurant: 280,
+      restaurantURL: 360,
+    };
+
+    window.setTimeout(() => {
+      scrollViewRef.current?.scrollTo({
+        animated: true,
+        y: fieldOffsets[field],
+      });
+    }, 280);
+  };
 
   const handleImagePick = async (
     field: 'mealImage' | 'restaurantLogo',
     source: 'documents' | 'gallery' = 'documents',
   ) => {
+    blurTextInputs();
+
     const image =
       source === 'documents' ? await pickImage() : await pickImageFromLibrary();
+
+    blurTextInputs();
 
     if (image?.uri) {
       form.updateField(field, image);
@@ -100,12 +155,32 @@ export const CouponFormScreen = ({ navigation, route }: CouponFormScreenProps) =
 
   const applyDescriptionFormat = (format: 'bold' | 'italic') => {
     const marker = format === 'bold' ? '**' : '*';
-    const currentDescription = form.values.description.trim();
-    const nextDescription = currentDescription
-      ? `${form.values.description}${marker}texto${marker}`
-      : `${marker}texto${marker}`;
+    const selectionStart = Math.min(
+      descriptionSelection.start,
+      descriptionSelection.end,
+      descriptionDraft.length,
+    );
+    const selectionEnd = Math.min(
+      Math.max(descriptionSelection.start, descriptionSelection.end),
+      descriptionDraft.length,
+    );
+    const selectedText = descriptionDraft.slice(selectionStart, selectionEnd);
+    const textToFormat = selectedText || 'texto';
+    const nextDescription = [
+      descriptionDraft.slice(0, selectionStart),
+      marker,
+      textToFormat,
+      marker,
+      descriptionDraft.slice(selectionEnd),
+    ].join('');
 
+    setDescriptionDraft(nextDescription);
     form.updateField('description', nextDescription);
+    setDescriptionSelection({
+      end: selectionStart + marker.length + textToFormat.length,
+      start: selectionStart + marker.length,
+    });
+    setDescriptionInputKey((currentKey) => currentKey + 1);
   };
 
   const handleDelete = () => {
@@ -154,13 +229,21 @@ export const CouponFormScreen = ({ navigation, route }: CouponFormScreenProps) =
   }
 
   return (
-    <ScrollView
-      contentContainerStyle={[
-        styles.container,
-        { paddingBottom: insets.bottom + spacing.xl },
-      ]}
-      keyboardShouldPersistTaps="handled"
+    <KeyboardAvoidingView
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top : 0}
+      style={styles.screen}
     >
+      <ScrollView
+        ref={scrollViewRef}
+        contentContainerStyle={[
+          styles.container,
+          { paddingBottom: insets.bottom + spacing.xl + 260 },
+        ]}
+        keyboardDismissMode="interactive"
+        keyboardShouldPersistTaps="handled"
+        style={styles.scroll}
+      >
       <Text style={styles.label}>Imagem do prato</Text>
       <Pressable
         accessibilityRole="button"
@@ -218,9 +301,11 @@ export const CouponFormScreen = ({ navigation, route }: CouponFormScreenProps) =
 
       <Text style={styles.label}>Restaurante *</Text>
       <TextInput
+        ref={restaurantInputRef}
         autoCapitalize="words"
         onChangeText={(value) => form.updateField('restaurant', value)}
-        placeholder="Ex.: Parma Pizza"
+        onFocus={() => scrollToField('restaurant')}
+        placeholder="Ex: Meu restaurante"
         placeholderTextColor={colors.textMuted}
         style={[styles.input, form.errors.restaurant && styles.inputError]}
         value={form.values.restaurant}
@@ -231,10 +316,12 @@ export const CouponFormScreen = ({ navigation, route }: CouponFormScreenProps) =
 
       <Text style={styles.label}>URL do restaurante</Text>
       <TextInput
+        ref={restaurantUrlInputRef}
         autoCapitalize="none"
         keyboardType="url"
         onChangeText={(value) => form.updateField('restaurantURL', value)}
-        placeholder="https://restaurante.com.br"
+        onFocus={() => scrollToField('restaurantURL')}
+        placeholder="Ex: https://restaurante.com.br"
         placeholderTextColor={colors.textMuted}
         style={[styles.input, form.errors.restaurantURL && styles.inputError]}
         value={form.values.restaurantURL}
@@ -259,13 +346,23 @@ export const CouponFormScreen = ({ navigation, route }: CouponFormScreenProps) =
         </Pressable>
       </View>
       <TextInput
+        key={descriptionInputKey}
+        ref={descriptionInputRef}
+        autoCorrect={false}
+        defaultValue={descriptionDraft}
         multiline
-        onChangeText={(value) => form.updateField('description', value)}
+        onChangeText={(value) => {
+          setDescriptionDraft(value);
+          form.updateField('description', value);
+        }}
+        onFocus={() => scrollToField('description')}
+        onSelectionChange={(event) =>
+          setDescriptionSelection(event.nativeEvent.selection)
+        }
         placeholder="Ex.: Na compra de **um rodizio** ganhe outro igual."
         placeholderTextColor={colors.textMuted}
         style={[styles.input, styles.textArea, form.errors.description && styles.inputError]}
         textAlignVertical="top"
-        value={form.values.description}
       />
       {form.errors.description ? (
         <Text style={styles.error}>{form.errors.description}</Text>
@@ -274,14 +371,13 @@ export const CouponFormScreen = ({ navigation, route }: CouponFormScreenProps) =
       <View style={styles.timeRow}>
         <View style={styles.timeField}>
           <Text style={styles.label}>Abertura *</Text>
-          <TextInput
-            keyboardType="numbers-and-punctuation"
-            onChangeText={(value) => form.updateField('opening', value)}
-            placeholder="18:00"
-            placeholderTextColor={colors.textMuted}
-            style={[styles.input, form.errors.opening && styles.inputError]}
-            value={form.values.opening}
-          />
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => setTimePickerField('opening')}
+            style={[styles.input, styles.timeSelect, form.errors.opening && styles.inputError]}
+          >
+            <Text style={styles.timeSelectText}>{form.values.opening}</Text>
+          </Pressable>
           {form.errors.opening ? (
             <Text style={styles.error}>{form.errors.opening}</Text>
           ) : null}
@@ -289,14 +385,13 @@ export const CouponFormScreen = ({ navigation, route }: CouponFormScreenProps) =
 
         <View style={styles.timeField}>
           <Text style={styles.label}>Fechamento *</Text>
-          <TextInput
-            keyboardType="numbers-and-punctuation"
-            onChangeText={(value) => form.updateField('close', value)}
-            placeholder="23:00"
-            placeholderTextColor={colors.textMuted}
-            style={[styles.input, form.errors.close && styles.inputError]}
-            value={form.values.close}
-          />
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => setTimePickerField('close')}
+            style={[styles.input, styles.timeSelect, form.errors.close && styles.inputError]}
+          >
+            <Text style={styles.timeSelectText}>{form.values.close}</Text>
+          </Pressable>
           {form.errors.close ? (
             <Text style={styles.error}>{form.errors.close}</Text>
           ) : null}
@@ -318,7 +413,44 @@ export const CouponFormScreen = ({ navigation, route }: CouponFormScreenProps) =
           <Text style={styles.deleteButtonText}>Excluir card</Text>
         </Pressable>
       ) : null}
-    </ScrollView>
+
+        <Modal
+          animationType="fade"
+          onRequestClose={() => setTimePickerField(null)}
+          transparent
+          visible={timePickerField !== null}
+        >
+          <Pressable
+            onPress={() => setTimePickerField(null)}
+            style={styles.modalBackdrop}
+          >
+            <Pressable style={styles.timeModal} onPress={() => undefined}>
+              <Text style={styles.timeModalTitle}>
+                {timePickerField === 'opening'
+                  ? 'Selecionar abertura'
+                  : 'Selecionar fechamento'}
+              </Text>
+              <ScrollView style={styles.timeOptionsList}>
+                {timeOptions.map((time) => (
+                  <Pressable
+                    key={time}
+                    onPress={() => {
+                      if (timePickerField) {
+                        form.updateField(timePickerField, time);
+                      }
+                      setTimePickerField(null);
+                    }}
+                    style={styles.timeOption}
+                  >
+                    <Text style={styles.timeOptionText}>{time}</Text>
+                  </Pressable>
+                ))}
+              </ScrollView>
+            </Pressable>
+          </Pressable>
+        </Modal>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 };
 
@@ -449,7 +581,10 @@ const styles = StyleSheet.create({
   imagePickerText: {
     color: colors.surface,
     fontFamily: typography.family.semiBold,
-    fontSize: typography.body,
+    fontSize: typography.caption,
+    lineHeight: 16,
+    paddingHorizontal: spacing.sm,
+    textAlign: 'center',
   },
   input: {
     backgroundColor: colors.surface,
@@ -489,6 +624,13 @@ const styles = StyleSheet.create({
     resizeMode: 'cover',
     width: '100%',
   },
+  modalBackdrop: {
+    alignItems: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.55)',
+    flex: 1,
+    justifyContent: 'center',
+    padding: spacing.lg,
+  },
   secondaryButton: {
     alignItems: 'center',
     padding: spacing.md,
@@ -498,14 +640,59 @@ const styles = StyleSheet.create({
     fontFamily: typography.family.bold,
     fontSize: typography.body,
   },
+  screen: {
+    backgroundColor: colors.background,
+    flex: 1,
+  },
+  scroll: {
+    backgroundColor: colors.background,
+    flex: 1,
+  },
   textArea: {
     minHeight: 132,
   },
   timeField: {
     flex: 1,
   },
+  timeModal: {
+    backgroundColor: colors.surface,
+    borderRadius: 12,
+    maxHeight: 360,
+    overflow: 'hidden',
+    width: '100%',
+  },
+  timeModalTitle: {
+    color: colors.text,
+    fontFamily: typography.family.bold,
+    fontSize: typography.body,
+    padding: spacing.md,
+    textAlign: 'center',
+  },
+  timeOption: {
+    alignItems: 'center',
+    borderTopColor: colors.border,
+    borderTopWidth: 1,
+    height: 44,
+    justifyContent: 'center',
+  },
+  timeOptionText: {
+    color: colors.text,
+    fontFamily: typography.family.semiBold,
+    fontSize: typography.body,
+  },
+  timeOptionsList: {
+    maxHeight: 300,
+  },
   timeRow: {
     flexDirection: 'row',
     gap: spacing.md,
+  },
+  timeSelect: {
+    justifyContent: 'center',
+  },
+  timeSelectText: {
+    color: colors.text,
+    fontFamily: typography.family.regular,
+    fontSize: typography.body,
   },
 });

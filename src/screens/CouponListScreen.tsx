@@ -379,6 +379,20 @@ export const CouponListScreen = ({ navigation }: CouponListScreenProps) => {
           </Text>
         </Pressable>
       </View>
+
+      {screenMode === 'manage' ? (
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => navigation.navigate('CouponForm')}
+          style={({ pressed }) => [
+            styles.newCardButton,
+            { bottom: FOOTER_HEIGHT + insets.bottom + spacing.md },
+            pressed && styles.pressed,
+          ]}
+        >
+          <Text style={styles.newCardButtonText}>Novo Card</Text>
+        </Pressable>
+      ) : null}
     </View>
   );
 };
@@ -479,6 +493,23 @@ const styles = StyleSheet.create({
     fontFamily: typography.family.semiBold,
     fontSize: 12,
     lineHeight: 16,
+  },
+  newCardButton: {
+    alignItems: 'center',
+    backgroundColor: colors.login,
+    borderRadius: 14,
+    height: 49,
+    justifyContent: 'center',
+    minWidth: 151,
+    paddingHorizontal: 21,
+    position: 'absolute',
+    right: LIST_HORIZONTAL_PADDING,
+  },
+  newCardButtonText: {
+    color: colors.surface,
+    fontFamily: typography.family.bold,
+    fontSize: 18,
+    lineHeight: 21,
   },
   pressed: {
     opacity: 0.72,

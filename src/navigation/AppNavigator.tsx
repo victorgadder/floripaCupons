@@ -29,7 +29,7 @@ export const AppNavigator = () => (
         component={CouponFormScreen}
         name="CouponForm"
         options={({ route }) => ({
-          title: route.params?.couponId ? 'Editar card' : 'Gerir card',
+          title: route.params?.couponId ? 'Editar card' : 'Configurar novo card',
         })}
       />
     </Stack.Navigator>

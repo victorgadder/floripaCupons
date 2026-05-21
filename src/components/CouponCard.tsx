@@ -3,8 +3,8 @@ import { Animated, Image, Pressable, StyleSheet, Text, View } from 'react-native
 import Svg, { Path } from 'react-native-svg';
 
 import BonusIcon from '../../assets/icons/bonus.svg';
-import CloseIcon from '../../assets/icons/close.svg';
 import ConfigCupomIcon from '../../assets/icons/configCupom.svg';
+import DeleteIcon from '../../assets/icons/delete.svg';
 import HeartIcon from '../../assets/icons/heart.svg';
 import { colors } from '../theme/colors';
 import { typography } from '../theme/typography';
@@ -164,7 +164,7 @@ export const CouponCard = ({
               onPress={onDelete}
               style={styles.actionButton}
             >
-              <CloseIcon color={colors.surface} height={24} width={24} />
+              <DeleteIcon color={colors.surface} height={22} width={22} />
             </Pressable>
           </View>
         ) : (
@@ -322,11 +322,12 @@ const styles = StyleSheet.create({
   },
   actionButton: {
     alignItems: 'center',
-    height: 28,
+    height: 30,
     justifyContent: 'center',
-    width: 28,
+    width: 30,
   },
   manageActions: {
+    alignItems: 'center',
     columnGap: 8,
     flexDirection: 'row',
     position: 'absolute',
