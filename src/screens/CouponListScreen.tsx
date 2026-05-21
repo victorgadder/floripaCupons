@@ -53,6 +53,12 @@ type Category = {
 
 type ScreenMode = 'coupons' | 'manage';
 
+type CouponListNavigation = Pick<CouponListScreenProps['navigation'], 'navigate'>;
+
+type CouponListProps = {
+  navigation: CouponListNavigation;
+};
+
 const HEADER_HEIGHT = 158;
 const FOOTER_HEIGHT = 93;
 const LIST_HORIZONTAL_PADDING = 16;
@@ -76,7 +82,8 @@ const categories: Category[] = [
   { id: 'barButeco', label: 'Bar/Buteco', Icon: BarButecoIcon },
 ];
 
-const isCouponReadyToDisplay = (coupon: Coupon) => coupon.title.trim().length > 0;
+const isCouponReadyToDisplay = (coupon: Coupon): boolean =>
+  coupon.title.trim().length > 0;
 
 type ManageCouponCardProps = {
   coupon: Coupon;
@@ -112,13 +119,13 @@ const ManageCouponCard = ({
     }
   }, [index]);
 
-  const startDragging = () => {
+  const startDragging = (): void => {
     isDraggingRef.current = true;
     setIsDragging(true);
     onDragStateChange(true);
   };
 
-  const stopDragging = () => {
+  const stopDragging = (): void => {
     isDraggingRef.current = false;
     setIsDragging(false);
     onDragStateChange(false);
@@ -226,7 +233,7 @@ const ManageCouponCard = ({
   );
 };
 
-export const CouponListScreen = ({ navigation }: CouponListScreenProps) => {
+export const CouponListScreen = ({ navigation }: CouponListProps) => {
   const coupons = useCouponStore((state) => state.coupons);
   const deleteCoupon = useCouponStore((state) => state.deleteCoupon);
   const reorderCoupons = useCouponStore((state) => state.reorderCoupons);
@@ -247,7 +254,7 @@ export const CouponListScreen = ({ navigation }: CouponListScreenProps) => {
       ? coupons
       : displayableCoupons.slice(0, visibleCount);
 
-  const handleDeleteCoupon = (couponId: string) => {
+  const handleDeleteCoupon = (couponId: string): void => {
     Alert.alert('Excluir card', 'Deseja excluir este card?', [
       { style: 'cancel', text: 'Cancelar' },
       {
@@ -258,21 +265,21 @@ export const CouponListScreen = ({ navigation }: CouponListScreenProps) => {
     ]);
   };
 
-  const reorderCouponByIndex = (fromIndex: number, toIndex: number) => {
+  const reorderCouponByIndex = (fromIndex: number, toIndex: number): void => {
     const nextCoupons = [...coupons];
     const [selectedCoupon] = nextCoupons.splice(fromIndex, 1);
     nextCoupons.splice(toIndex, 0, selectedCoupon);
     reorderCoupons(nextCoupons);
   };
 
-  const handleDragMove = (screenY: number) => {
+  const handleDragMove = (screenY: number): void => {
     const visibleListHeight =
       listHeightRef.current || height - HEADER_HEIGHT - FOOTER_HEIGHT;
     const maxScrollOffset = Math.max(
       0,
       contentHeightRef.current - visibleListHeight,
     );
-    const listTop = HEADER_HEIGHT + 90;
+    const listTop = HEADER_HEIGHT + 83;
     const listBottom = height - FOOTER_HEIGHT - insets.bottom;
     let nextOffset = scrollOffsetRef.current;
 
@@ -493,13 +500,13 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
     borderBottomColor: colors.placeholder,
     borderBottomWidth: 1,
-    height: 90,
+    height: 83,
   },
   categoryContent: {
     alignItems: 'flex-end',
     columnGap: 16,
+    paddingBottom: 5,
     paddingHorizontal: 6,
-    paddingBottom: 6,
   },
   categoryIconBox: {
     alignItems: 'center',
@@ -510,9 +517,9 @@ const styles = StyleSheet.create({
   categoryLabel: {
     fontFamily: typography.family.semiBold,
     fontSize: 9,
-    lineHeight: 10,
-    marginBottom: 6,
-    marginTop: 5,
+    lineHeight: 11,
+    marginBottom: 5,
+    marginTop: 4,
     textAlign: 'center',
   },
   container: {
@@ -587,6 +594,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     height: SEARCH_HEIGHT,
     justifyContent: 'space-between',
+    overflow: 'hidden',
     paddingHorizontal: 8,
     position: 'absolute',
     top: HEADER_HEIGHT - SEARCH_HEIGHT / 2,
@@ -598,7 +606,7 @@ const styles = StyleSheet.create({
     flex: 1,
     fontFamily: typography.family.regular,
     fontSize: 9,
-    lineHeight: 12,
+    lineHeight: 11,
     marginHorizontal: 6,
   },
   separator: {

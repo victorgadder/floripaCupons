@@ -23,17 +23,17 @@ import { useCouponStore } from '../store/couponStore';
 import { colors } from '../theme/colors';
 import { spacing } from '../theme/spacing';
 import { typography } from '../theme/typography';
-import type { CouponFormInput } from '../types/coupon';
+import type { CouponFormInput, CouponImage } from '../types/coupon';
 import type { CouponFormScreenProps } from '../types/navigation';
 
-const timeOptions = Array.from({ length: 48 }, (_, index) => {
+const timeOptions: string[] = Array.from({ length: 48 }, (_, index) => {
   const hours = Math.floor(index / 2);
   const minutes = index % 2 === 0 ? '00' : '30';
 
   return `${String(hours).padStart(2, '0')}:${minutes}`;
 });
 
-const pickImage = async () => {
+const pickImage = async (): Promise<CouponImage | undefined> => {
   const documentResult = await DocumentPicker.getDocumentAsync({
     copyToCacheDirectory: true,
     multiple: false,
@@ -49,7 +49,7 @@ const pickImage = async () => {
   return undefined;
 };
 
-const pickImageFromLibrary = async () => {
+const pickImageFromLibrary = async (): Promise<CouponImage | undefined> => {
   const result = await ImagePicker.launchImageLibraryAsync({
     allowsEditing: true,
     mediaTypes: ['images'],
@@ -75,7 +75,7 @@ const initialFormValues: CouponFormInput = {
 
 type EditableField = 'title' | 'description';
 
-const getMissingRequiredField = (values: CouponFormInput) => {
+const getMissingRequiredField = (values: CouponFormInput): string | null => {
   if (!values.title.trim()) {
     return 'Título';
   }
@@ -144,13 +144,13 @@ export const CouponFormScreen = ({ navigation, route }: CouponFormScreenProps) =
     return unsubscribe;
   }, [form.isDirty, navigation]);
 
-  const blurTextInputs = () => {
+  const blurTextInputs = (): void => {
     titleInputRef.current?.blur();
     descriptionInputRef.current?.blur();
     Keyboard.dismiss();
   };
 
-  const scrollToField = (field: EditableField) => {
+  const scrollToField = (field: EditableField): void => {
     const fieldOffsets: Record<EditableField, number> = {
       description: 340,
       title: 280,
@@ -167,7 +167,7 @@ export const CouponFormScreen = ({ navigation, route }: CouponFormScreenProps) =
   const handleImagePick = async (
     field: 'mealImage' | 'restaurantLogo',
     source: 'documents' | 'gallery' = 'documents',
-  ) => {
+  ): Promise<void> => {
     blurTextInputs();
 
     const image =
@@ -180,7 +180,7 @@ export const CouponFormScreen = ({ navigation, route }: CouponFormScreenProps) =
     }
   };
 
-  const applyDescriptionFormat = (format: 'bold' | 'italic') => {
+  const applyDescriptionFormat = (format: 'bold' | 'italic'): void => {
     const marker = format === 'bold' ? '**' : '*';
     const selectionStart = Math.min(
       descriptionSelection.start,
@@ -210,7 +210,7 @@ export const CouponFormScreen = ({ navigation, route }: CouponFormScreenProps) =
     setDescriptionInputKey((currentKey) => currentKey + 1);
   };
 
-  const handleDelete = () => {
+  const handleDelete = (): void => {
     if (!couponId) {
       return;
     }
@@ -229,7 +229,7 @@ export const CouponFormScreen = ({ navigation, route }: CouponFormScreenProps) =
     ]);
   };
 
-  const saveForm = () => {
+  const saveForm = (): boolean => {
     const result = form.validate();
 
     if (!result.ok) {
@@ -245,7 +245,7 @@ export const CouponFormScreen = ({ navigation, route }: CouponFormScreenProps) =
     return true;
   };
 
-  const saveDraft = () => {
+  const saveDraft = (): void => {
     if (couponId) {
       updateCoupon(couponId, form.values);
     } else {
@@ -253,7 +253,7 @@ export const CouponFormScreen = ({ navigation, route }: CouponFormScreenProps) =
     }
   };
 
-  const leaveScreen = () => {
+  const leaveScreen = (): void => {
     allowExitRef.current = true;
     const action = pendingNavigationAction;
 
@@ -268,7 +268,7 @@ export const CouponFormScreen = ({ navigation, route }: CouponFormScreenProps) =
     navigation.goBack();
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = (): void => {
     if (!saveForm()) {
       return;
     }
@@ -276,7 +276,7 @@ export const CouponFormScreen = ({ navigation, route }: CouponFormScreenProps) =
     leaveScreen();
   };
 
-  const handleSaveAndExit = () => {
+  const handleSaveAndExit = (): void => {
     if (!saveForm()) {
       setUnsavedModalVisible(false);
       setMissingRequiredField(getMissingRequiredField(form.values));
@@ -287,23 +287,23 @@ export const CouponFormScreen = ({ navigation, route }: CouponFormScreenProps) =
     leaveScreen();
   };
 
-  const handleExitWithDraft = () => {
+  const handleExitWithDraft = (): void => {
     saveDraft();
     setInvalidDraftModalVisible(false);
     leaveScreen();
   };
 
-  const handleContinueEditing = () => {
+  const handleContinueEditing = (): void => {
     setMissingRequiredField(null);
     setPendingNavigationAction(null);
     setInvalidDraftModalVisible(false);
   };
 
-  const handleDiscardAndExit = () => {
+  const handleDiscardAndExit = (): void => {
     leaveScreen();
   };
 
-  const handleCancelExit = () => {
+  const handleCancelExit = (): void => {
     setPendingNavigationAction(null);
     setUnsavedModalVisible(false);
   };
@@ -311,7 +311,7 @@ export const CouponFormScreen = ({ navigation, route }: CouponFormScreenProps) =
   if (couponId && !coupon) {
     return (
       <View style={styles.emptyState}>
-        <Text style={styles.emptyTitle}>Cupom nao encontrado.</Text>
+        <Text style={styles.emptyTitle}>Cupom não encontrado.</Text>
         <Pressable onPress={() => navigation.goBack()} style={styles.secondaryButton}>
           <Text style={styles.secondaryButtonText}>Voltar</Text>
         </Pressable>
@@ -827,9 +827,6 @@ const styles = StyleSheet.create({
     minHeight: 156,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.md,
-  },
-  textArea: {
-    minHeight: 132,
   },
   timeField: {
     flex: 1,

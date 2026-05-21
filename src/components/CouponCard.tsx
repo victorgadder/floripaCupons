@@ -33,6 +33,11 @@ type DescriptionSegment = {
   italic?: boolean;
 };
 
+type OpeningStatus = {
+  backgroundColor: string;
+  label: 'Aberto agora' | 'Fechado';
+};
+
 const parseDescription = (description: string): DescriptionSegment[] => {
   const segments: DescriptionSegment[] = [];
   const regex = /(\*\*[^*]+\*\*|\*[^*]+\*)/g;
@@ -62,7 +67,10 @@ const parseDescription = (description: string): DescriptionSegment[] => {
   return segments;
 };
 
-const getOpeningStatus = ({ close, opening }: Pick<Coupon, 'close' | 'opening'>) => {
+const getOpeningStatus = ({
+  close,
+  opening,
+}: Pick<Coupon, 'close' | 'opening'>): OpeningStatus => {
   const now = new Date();
   const currentMinutes = now.getHours() * 60 + now.getMinutes();
   const [openingHours, openingMinutes] = opening.split(':').map(Number);
@@ -181,6 +189,7 @@ export const CouponCard = ({
           <Pressable
             accessibilityLabel="Favoritar card"
             accessibilityRole="button"
+            accessibilityState={{ selected: isFavorite }}
             hitSlop={8}
             onPress={handleFavoritePress}
             style={styles.heartButton}
@@ -258,27 +267,26 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
     justifyContent: 'flex-start',
-    paddingBottom: 30,
-    paddingLeft: 18,
-    paddingRight: 14,
-    paddingTop: 56,
+    paddingBottom: 28,
+    paddingLeft: 20,
+    paddingRight: 12,
+    paddingTop: 58,
   },
   description: {
     color: colors.surface,
     fontFamily: typography.family.regular,
     fontSize: 11,
-    lineHeight: 15,
-    marginTop: 6,
-  },
-  heart: {
-    position: 'absolute',
-    right: 13,
-    top: 12,
+    lineHeight: 14,
+    marginTop: 4,
   },
   heartButton: {
+    alignItems: 'center',
+    height: 36,
+    justifyContent: 'center',
     position: 'absolute',
-    right: 13,
-    top: 12,
+    right: 8,
+    top: 8,
+    width: 36,
     zIndex: 3,
   },
   heartFill: {
@@ -341,8 +349,8 @@ const styles = StyleSheet.create({
     columnGap: 8,
     flexDirection: 'row',
     position: 'absolute',
-    right: 10,
-    top: 12,
+    right: 9,
+    top: 9,
     zIndex: 3,
   },
   pressed: {
@@ -352,7 +360,7 @@ const styles = StyleSheet.create({
     color: colors.surface,
     fontFamily: typography.family.bold,
     fontSize: 14,
-    lineHeight: 18,
+    lineHeight: 17,
     paddingRight: 34,
   },
   restaurantLogo: {
@@ -371,7 +379,7 @@ const styles = StyleSheet.create({
     minWidth: 68,
     overflow: 'hidden',
     paddingHorizontal: 10,
-    paddingVertical: 3,
+    paddingVertical: 2,
     position: 'absolute',
     right: 12,
     textAlign: 'center',

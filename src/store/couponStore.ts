@@ -9,7 +9,7 @@ type PersistedCoupon = Coupon & {
   restaurant?: string;
 };
 
-type CouponState = {
+export type CouponState = {
   coupons: Coupon[];
   addCoupon: (input: CouponFormInput) => void;
   deleteCoupon: (couponId: CouponId) => void;
@@ -32,6 +32,14 @@ const createCoupon = (input: CouponFormInput): Coupon => ({
   id: `coupon-${Date.now()}`,
   ...normalizeCouponInput(input),
 });
+
+const isPersistedCoupon = (coupon: unknown): coupon is PersistedCoupon =>
+  typeof coupon === 'object' && coupon !== null && 'id' in coupon;
+
+const isPersistedCouponState = (
+  state: unknown,
+): state is Partial<CouponState> & { coupons?: unknown[] } =>
+  typeof state === 'object' && state !== null;
 
 const normalizePersistedCoupon = (coupon: PersistedCoupon): Coupon => {
   const { restaurant, ...currentCoupon } = coupon;
@@ -76,15 +84,17 @@ export const useCouponStore = create<CouponState>()(
     }),
     {
       merge: (persistedState, currentState) => {
-        const nextState = persistedState as Partial<CouponState> | undefined;
+        const nextState = isPersistedCouponState(persistedState)
+          ? persistedState
+          : undefined;
+        const persistedCoupons = nextState?.coupons?.filter(isPersistedCoupon);
 
         return {
           ...currentState,
           ...nextState,
           coupons:
-            nextState?.coupons?.map((coupon) =>
-              normalizePersistedCoupon(coupon as PersistedCoupon),
-            ) ?? currentState.coupons,
+            persistedCoupons?.map(normalizePersistedCoupon) ??
+            currentState.coupons,
         };
       },
       name: 'floripa-cupons:coupon-cards',

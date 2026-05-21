@@ -6,7 +6,40 @@ import { couponFormSchema } from '../utils/couponValidation';
 
 type CouponFormErrors = Partial<Record<keyof CouponFormInput, string>>;
 
-export const useCouponForm = (initialValues: CouponFormInput) => {
+type CouponFormValidationResult =
+  | {
+      data: CouponFormInput;
+      ok: true;
+    }
+  | {
+      ok: false;
+    };
+
+type UseCouponFormResult = {
+  errors: CouponFormErrors;
+  isDirty: boolean;
+  updateField: <Field extends keyof CouponFormInput>(
+    field: Field,
+    value: CouponFormInput[Field],
+  ) => void;
+  validate: () => CouponFormValidationResult;
+  values: CouponFormInput;
+};
+
+const isCouponFormField = (field: PropertyKey): field is keyof CouponFormInput =>
+  [
+    'bonus',
+    'close',
+    'description',
+    'mealImage',
+    'opening',
+    'restaurantLogo',
+    'title',
+  ].includes(String(field));
+
+export const useCouponForm = (
+  initialValues: CouponFormInput,
+): UseCouponFormResult => {
   const [values, setValues] = useState<CouponFormInput>(initialValues);
   const [errors, setErrors] = useState<CouponFormErrors>({});
 
@@ -18,7 +51,7 @@ export const useCouponForm = (initialValues: CouponFormInput) => {
   const updateField = <Field extends keyof CouponFormInput>(
     field: Field,
     value: CouponFormInput[Field],
-  ) => {
+  ): void => {
     setErrors((currentErrors) => ({
       ...currentErrors,
       [field]: undefined,
@@ -29,21 +62,21 @@ export const useCouponForm = (initialValues: CouponFormInput) => {
     }));
   };
 
-  const validate = () => {
+  const validate = (): CouponFormValidationResult => {
     try {
       setErrors({});
       return {
-        ok: true as const,
         data: couponFormSchema.parse(values),
+        ok: true,
       };
     } catch (error) {
       if (error instanceof ZodError) {
         const nextErrors: CouponFormErrors = {};
 
         error.issues.forEach((issue) => {
-          const field = issue.path[0] as keyof CouponFormInput | undefined;
+          const field = issue.path[0];
 
-          if (field && !nextErrors[field]) {
+          if (field && isCouponFormField(field) && !nextErrors[field]) {
             nextErrors[field] = issue.message;
           }
         });
@@ -52,7 +85,7 @@ export const useCouponForm = (initialValues: CouponFormInput) => {
       }
 
       return {
-        ok: false as const,
+        ok: false,
       };
     }
   };

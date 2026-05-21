@@ -12,5 +12,8 @@ export const couponFormSchema = z.object({
     .string()
     .trim()
     .regex(timeRegex, 'Use o formato HH:MM para abertura.'),
-  close: z.string().trim().regex(timeRegex, 'Use o formato HH:MM para fechamento.'),
+  close: z
+    .string()
+    .trim()
+    .regex(timeRegex, 'Use o formato HH:MM para fechamento.'),
 });
