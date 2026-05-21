@@ -1,5 +1,13 @@
 import { useRef, useState } from 'react';
-import { Animated, Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import {
+  Animated,
+  Image,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+  type GestureResponderEvent,
+} from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 
 import BonusIcon from '../../assets/icons/bonus.svg';
@@ -91,10 +99,12 @@ export const CouponCard = ({
   onPress,
 }: CouponCardProps) => {
   const openingStatus = getOpeningStatus(coupon);
+  const title = coupon.title.trim() || 'Sem título';
   const [isFavorite, setIsFavorite] = useState(false);
   const heartScale = useRef(new Animated.Value(1)).current;
 
-  const handleFavoritePress = () => {
+  const handleFavoritePress = (event: GestureResponderEvent) => {
+    event.stopPropagation();
     setIsFavorite((currentValue) => !currentValue);
     Animated.sequence([
       Animated.timing(heartScale, {
@@ -140,7 +150,7 @@ export const CouponCard = ({
           />
         ) : (
           <Text style={styles.logoFallback}>
-            {coupon.restaurant.slice(0, 2).toUpperCase()}
+            {title.slice(0, 2).toUpperCase()}
           </Text>
         )}
       </View>
@@ -197,8 +207,8 @@ export const CouponCard = ({
             </Animated.View>
           </Pressable>
         )}
-        <Text numberOfLines={1} style={styles.restaurant}>
-          {coupon.restaurant}
+        <Text numberOfLines={1} style={styles.title}>
+          {title}
         </Text>
         <Text numberOfLines={3} style={styles.description}>
           {parseDescription(coupon.description).map((segment, index) => (
@@ -338,7 +348,7 @@ const styles = StyleSheet.create({
   pressed: {
     opacity: 0.8,
   },
-  restaurant: {
+  title: {
     color: colors.surface,
     fontFamily: typography.family.bold,
     fontSize: 14,

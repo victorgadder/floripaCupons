@@ -1,5 +1,6 @@
 import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
+import type { NavigationAction } from '@react-navigation/native';
 import {
   Alert,
   Image,
@@ -14,7 +15,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useCouponForm } from '../hooks/useCouponForm';
@@ -69,11 +70,18 @@ const initialFormValues: CouponFormInput = {
   close: '23:00',
   description: '',
   opening: '18:00',
-  restaurant: '',
-  restaurantURL: '',
+  title: '',
 };
 
-type EditableField = 'restaurant' | 'restaurantURL' | 'description';
+type EditableField = 'title' | 'description';
+
+const getMissingRequiredField = (values: CouponFormInput) => {
+  if (!values.title.trim()) {
+    return 'Título';
+  }
+
+  return null;
+};
 
 export const CouponFormScreen = ({ navigation, route }: CouponFormScreenProps) => {
   const [timePickerField, setTimePickerField] = useState<
@@ -87,14 +95,21 @@ export const CouponFormScreen = ({ navigation, route }: CouponFormScreenProps) =
   const deleteCoupon = useCouponStore((state) => state.deleteCoupon);
   const updateCoupon = useCouponStore((state) => state.updateCoupon);
   const insets = useSafeAreaInsets();
+  const allowExitRef = useRef(false);
   const scrollViewRef = useRef<ScrollView>(null);
-  const restaurantInputRef = useRef<TextInput>(null);
-  const restaurantUrlInputRef = useRef<TextInput>(null);
+  const titleInputRef = useRef<TextInput>(null);
   const descriptionInputRef = useRef<TextInput>(null);
+  const [pendingNavigationAction, setPendingNavigationAction] =
+    useState<NavigationAction | null>(null);
   const [descriptionSelection, setDescriptionSelection] = useState({
     end: 0,
     start: 0,
   });
+  const [missingRequiredField, setMissingRequiredField] = useState<string | null>(
+    null,
+  );
+  const [unsavedModalVisible, setUnsavedModalVisible] = useState(false);
+  const [invalidDraftModalVisible, setInvalidDraftModalVisible] = useState(false);
 
   const form = useCouponForm(
     coupon
@@ -104,9 +119,8 @@ export const CouponFormScreen = ({ navigation, route }: CouponFormScreenProps) =
           description: coupon.description,
           mealImage: coupon.mealImage,
           opening: coupon.opening,
-          restaurant: coupon.restaurant,
           restaurantLogo: coupon.restaurantLogo,
-          restaurantURL: coupon.restaurantURL ?? '',
+          title: coupon.title,
       }
       : initialFormValues,
   );
@@ -115,18 +129,31 @@ export const CouponFormScreen = ({ navigation, route }: CouponFormScreenProps) =
   );
   const [descriptionInputKey, setDescriptionInputKey] = useState(0);
 
+  useEffect(() => {
+    const unsubscribe = navigation.addListener('beforeRemove', (event) => {
+      if (!form.isDirty || allowExitRef.current) {
+        return;
+      }
+
+      event.preventDefault();
+      blurTextInputs();
+      setPendingNavigationAction(event.data.action);
+      setUnsavedModalVisible(true);
+    });
+
+    return unsubscribe;
+  }, [form.isDirty, navigation]);
+
   const blurTextInputs = () => {
-    restaurantInputRef.current?.blur();
-    restaurantUrlInputRef.current?.blur();
+    titleInputRef.current?.blur();
     descriptionInputRef.current?.blur();
     Keyboard.dismiss();
   };
 
   const scrollToField = (field: EditableField) => {
     const fieldOffsets: Record<EditableField, number> = {
-      description: 430,
-      restaurant: 280,
-      restaurantURL: 360,
+      description: 340,
+      title: 280,
     };
 
     window.setTimeout(() => {
@@ -192,6 +219,7 @@ export const CouponFormScreen = ({ navigation, route }: CouponFormScreenProps) =
       { style: 'cancel', text: 'Cancelar' },
       {
         onPress: () => {
+          allowExitRef.current = true;
           deleteCoupon(couponId);
           navigation.goBack();
         },
@@ -201,11 +229,11 @@ export const CouponFormScreen = ({ navigation, route }: CouponFormScreenProps) =
     ]);
   };
 
-  const handleSubmit = () => {
+  const saveForm = () => {
     const result = form.validate();
 
     if (!result.ok) {
-      return;
+      return false;
     }
 
     if (couponId) {
@@ -214,7 +242,70 @@ export const CouponFormScreen = ({ navigation, route }: CouponFormScreenProps) =
       addCoupon(result.data);
     }
 
+    return true;
+  };
+
+  const saveDraft = () => {
+    if (couponId) {
+      updateCoupon(couponId, form.values);
+    } else {
+      addCoupon(form.values);
+    }
+  };
+
+  const leaveScreen = () => {
+    allowExitRef.current = true;
+    const action = pendingNavigationAction;
+
+    setPendingNavigationAction(null);
+    setUnsavedModalVisible(false);
+
+    if (action) {
+      navigation.dispatch(action);
+      return;
+    }
+
     navigation.goBack();
+  };
+
+  const handleSubmit = () => {
+    if (!saveForm()) {
+      return;
+    }
+
+    leaveScreen();
+  };
+
+  const handleSaveAndExit = () => {
+    if (!saveForm()) {
+      setUnsavedModalVisible(false);
+      setMissingRequiredField(getMissingRequiredField(form.values));
+      setInvalidDraftModalVisible(true);
+      return;
+    }
+
+    leaveScreen();
+  };
+
+  const handleExitWithDraft = () => {
+    saveDraft();
+    setInvalidDraftModalVisible(false);
+    leaveScreen();
+  };
+
+  const handleContinueEditing = () => {
+    setMissingRequiredField(null);
+    setPendingNavigationAction(null);
+    setInvalidDraftModalVisible(false);
+  };
+
+  const handleDiscardAndExit = () => {
+    leaveScreen();
+  };
+
+  const handleCancelExit = () => {
+    setPendingNavigationAction(null);
+    setUnsavedModalVisible(false);
   };
 
   if (couponId && !coupon) {
@@ -299,71 +390,57 @@ export const CouponFormScreen = ({ navigation, route }: CouponFormScreenProps) =
         <Text style={styles.galleryButtonText}>Escolher pela galeria</Text>
       </Pressable>
 
-      <Text style={styles.label}>Restaurante *</Text>
+      <Text style={styles.label}>Título *</Text>
       <TextInput
-        ref={restaurantInputRef}
+        ref={titleInputRef}
         autoCapitalize="words"
-        onChangeText={(value) => form.updateField('restaurant', value)}
-        onFocus={() => scrollToField('restaurant')}
-        placeholder="Ex: Meu restaurante"
+        onChangeText={(value) => form.updateField('title', value)}
+        onFocus={() => scrollToField('title')}
+        placeholder="Ex: Parma Pizza"
         placeholderTextColor={colors.textMuted}
-        style={[styles.input, form.errors.restaurant && styles.inputError]}
-        value={form.values.restaurant}
+        style={[styles.input, form.errors.title && styles.inputError]}
+        value={form.values.title}
       />
-      {form.errors.restaurant ? (
-        <Text style={styles.error}>{form.errors.restaurant}</Text>
+      {form.errors.title ? (
+        <Text style={styles.error}>{form.errors.title}</Text>
       ) : null}
 
-      <Text style={styles.label}>URL do restaurante</Text>
-      <TextInput
-        ref={restaurantUrlInputRef}
-        autoCapitalize="none"
-        keyboardType="url"
-        onChangeText={(value) => form.updateField('restaurantURL', value)}
-        onFocus={() => scrollToField('restaurantURL')}
-        placeholder="Ex: https://restaurante.com.br"
-        placeholderTextColor={colors.textMuted}
-        style={[styles.input, form.errors.restaurantURL && styles.inputError]}
-        value={form.values.restaurantURL}
-      />
-      {form.errors.restaurantURL ? (
-        <Text style={styles.error}>{form.errors.restaurantURL}</Text>
-      ) : null}
-
-      <Text style={styles.label}>Promoção *</Text>
-      <View style={styles.formatToolbar}>
-        <Pressable
-          onPress={() => applyDescriptionFormat('bold')}
-          style={styles.formatButton}
-        >
-          <Text style={styles.formatBold}>B</Text>
-        </Pressable>
-        <Pressable
-          onPress={() => applyDescriptionFormat('italic')}
-          style={styles.formatButton}
-        >
-          <Text style={styles.formatItalic}>I</Text>
-        </Pressable>
+      <Text style={styles.label}>Promoção</Text>
+      <View style={styles.richTextEditor}>
+        <View style={styles.formatToolbar}>
+          <Pressable
+            onPress={() => applyDescriptionFormat('bold')}
+            style={styles.formatButton}
+          >
+            <Text style={styles.formatBold}>B</Text>
+          </Pressable>
+          <Pressable
+            onPress={() => applyDescriptionFormat('italic')}
+            style={styles.formatButton}
+          >
+            <Text style={styles.formatItalic}>I</Text>
+          </Pressable>
+        </View>
+        <TextInput
+          key={descriptionInputKey}
+          ref={descriptionInputRef}
+          autoCorrect={false}
+          defaultValue={descriptionDraft}
+          multiline
+          onChangeText={(value) => {
+            setDescriptionDraft(value);
+            form.updateField('description', value);
+          }}
+          onFocus={() => scrollToField('description')}
+          onSelectionChange={(event) =>
+            setDescriptionSelection(event.nativeEvent.selection)
+          }
+          placeholder="Ex.: Na compra de **um rodízio** ganhe outro igual."
+          placeholderTextColor={colors.textMuted}
+          style={[styles.richTextInput, form.errors.description && styles.inputError]}
+          textAlignVertical="top"
+        />
       </View>
-      <TextInput
-        key={descriptionInputKey}
-        ref={descriptionInputRef}
-        autoCorrect={false}
-        defaultValue={descriptionDraft}
-        multiline
-        onChangeText={(value) => {
-          setDescriptionDraft(value);
-          form.updateField('description', value);
-        }}
-        onFocus={() => scrollToField('description')}
-        onSelectionChange={(event) =>
-          setDescriptionSelection(event.nativeEvent.selection)
-        }
-        placeholder="Ex.: Na compra de **um rodizio** ganhe outro igual."
-        placeholderTextColor={colors.textMuted}
-        style={[styles.input, styles.textArea, form.errors.description && styles.inputError]}
-        textAlignVertical="top"
-      />
       {form.errors.description ? (
         <Text style={styles.error}>{form.errors.description}</Text>
       ) : null}
@@ -449,6 +526,89 @@ export const CouponFormScreen = ({ navigation, route }: CouponFormScreenProps) =
             </Pressable>
           </Pressable>
         </Modal>
+        <Modal
+          animationType="fade"
+          onRequestClose={handleCancelExit}
+          transparent
+          visible={unsavedModalVisible}
+        >
+          <View style={styles.modalBackdrop}>
+            <View style={styles.unsavedModal}>
+              <Text style={styles.unsavedModalText}>
+                Existem alterações não salvas. Deseja sair mesmo assim?
+              </Text>
+              <Pressable
+                accessibilityRole="button"
+                onPress={handleSaveAndExit}
+                style={({ pressed }) => [
+                  styles.unsavedButton,
+                  styles.saveAndExitButton,
+                  pressed && styles.buttonPressed,
+                ]}
+              >
+                <Text style={styles.unsavedButtonText}>Salvar e sair</Text>
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
+                onPress={handleDiscardAndExit}
+                style={({ pressed }) => [
+                  styles.unsavedButton,
+                  styles.discardButton,
+                  pressed && styles.buttonPressed,
+                ]}
+              >
+                <Text style={styles.unsavedButtonText}>Sair sem Salvar</Text>
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
+                onPress={handleCancelExit}
+                style={({ pressed }) => [
+                  styles.unsavedButton,
+                  styles.cancelExitButton,
+                  pressed && styles.buttonPressed,
+                ]}
+              >
+                <Text style={styles.unsavedButtonText}>Cancelar</Text>
+              </Pressable>
+            </View>
+          </View>
+        </Modal>
+        <Modal
+          animationType="fade"
+          onRequestClose={handleContinueEditing}
+          transparent
+          visible={invalidDraftModalVisible}
+        >
+          <View style={styles.modalBackdrop}>
+            <View style={styles.unsavedModal}>
+              <Text style={styles.unsavedModalText}>
+                {`O campo '${missingRequiredField ?? 'obrigatório'}' é obrigatório. Por enquanto, ele não será exibido mas você pode continuar editando-o na tela 'Gerir'. Deseja mesmo sair?`}
+              </Text>
+              <Pressable
+                accessibilityRole="button"
+                onPress={handleExitWithDraft}
+                style={({ pressed }) => [
+                  styles.unsavedButton,
+                  styles.discardButton,
+                  pressed && styles.buttonPressed,
+                ]}
+              >
+                <Text style={styles.unsavedButtonText}>Sair assim mesmo</Text>
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
+                onPress={handleContinueEditing}
+                style={({ pressed }) => [
+                  styles.unsavedButton,
+                  styles.cancelExitButton,
+                  pressed && styles.buttonPressed,
+                ]}
+              >
+                <Text style={styles.unsavedButtonText}>Continuar criando</Text>
+              </Pressable>
+            </View>
+          </View>
+        </Modal>
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -514,6 +674,9 @@ const styles = StyleSheet.create({
     fontFamily: typography.family.bold,
     fontSize: typography.body,
   },
+  discardButton: {
+    backgroundColor: '#E53935',
+  },
   emptyState: {
     alignItems: 'center',
     backgroundColor: colors.background,
@@ -555,9 +718,11 @@ const styles = StyleSheet.create({
     fontStyle: 'italic',
   },
   formatToolbar: {
+    borderBottomColor: colors.border,
+    borderBottomWidth: 1,
     flexDirection: 'row',
     gap: spacing.sm,
-    marginBottom: spacing.sm,
+    padding: spacing.sm,
   },
   galleryButton: {
     alignSelf: 'flex-start',
@@ -648,6 +813,21 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
     flex: 1,
   },
+  richTextEditor: {
+    backgroundColor: colors.surface,
+    borderColor: colors.border,
+    borderRadius: 10,
+    borderWidth: 1,
+    overflow: 'hidden',
+  },
+  richTextInput: {
+    color: colors.text,
+    fontFamily: typography.family.regular,
+    fontSize: typography.body,
+    minHeight: 156,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.md,
+  },
   textArea: {
     minHeight: 132,
   },
@@ -694,5 +874,39 @@ const styles = StyleSheet.create({
     color: colors.text,
     fontFamily: typography.family.regular,
     fontSize: typography.body,
+  },
+  cancelExitButton: {
+    backgroundColor: colors.login,
+  },
+  saveAndExitButton: {
+    backgroundColor: '#2fad2e',
+  },
+  unsavedButton: {
+    alignItems: 'center',
+    borderRadius: 14,
+    height: 49,
+    justifyContent: 'center',
+    width: '100%',
+  },
+  unsavedButtonText: {
+    color: colors.surface,
+    fontFamily: typography.family.bold,
+    fontSize: 16,
+    lineHeight: 20,
+  },
+  unsavedModal: {
+    backgroundColor: colors.surface,
+    borderRadius: 14,
+    gap: spacing.sm,
+    padding: spacing.lg,
+    width: '100%',
+  },
+  unsavedModalText: {
+    color: colors.text,
+    fontFamily: typography.family.bold,
+    fontSize: typography.body,
+    lineHeight: 22,
+    marginBottom: spacing.sm,
+    textAlign: 'center',
   },
 });

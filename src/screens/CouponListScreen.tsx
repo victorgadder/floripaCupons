@@ -4,7 +4,6 @@ import {
   Animated,
   FlatList,
   Image,
-  Linking,
   PanResponder,
   Pressable,
   ScrollView,
@@ -22,6 +21,7 @@ import ConfigCupomIcon from '../../assets/icons/configCupom.svg';
 import CupomIcon from '../../assets/icons/cupom.svg';
 import ExtraIcon from '../../assets/icons/extra.svg';
 import HamburgueriaIcon from '../../assets/icons/hamburgueria.svg';
+import NewCardIcon from '../../assets/icons/newCard.svg';
 import OrientalIcon from '../../assets/icons/oriental.svg';
 import PizzariaIcon from '../../assets/icons/pizzaria.svg';
 import RestauranteIcon from '../../assets/icons/restaurante.svg';
@@ -63,6 +63,8 @@ const BANNER_ASPECT_RATIO = 1472 / 812;
 const CARD_HEIGHT = 159;
 const CARD_GAP = 16;
 const CARD_STEP = CARD_HEIGHT + CARD_GAP;
+const AUTO_SCROLL_STEP = 18;
+const AUTO_SCROLL_THRESHOLD = 90;
 
 const categories: Category[] = [
   { id: 'todos', label: 'Todos', Icon: TodosIcon },
@@ -74,13 +76,17 @@ const categories: Category[] = [
   { id: 'barButeco', label: 'Bar/Buteco', Icon: BarButecoIcon },
 ];
 
+const isCouponReadyToDisplay = (coupon: Coupon) => coupon.title.trim().length > 0;
+
 type ManageCouponCardProps = {
   coupon: Coupon;
   index: number;
   itemCount: number;
   onDelete: () => void;
-  onDrop: (fromIndex: number, toIndex: number) => void;
+  onDragStateChange: (isDragging: boolean) => void;
+  onDragMove: (screenY: number) => void;
   onEdit: () => void;
+  onMove: (fromIndex: number, toIndex: number) => void;
 };
 
 const ManageCouponCard = ({
@@ -88,12 +94,36 @@ const ManageCouponCard = ({
   index,
   itemCount,
   onDelete,
-  onDrop,
+  onDragStateChange,
+  onDragMove,
   onEdit,
+  onMove,
 }: ManageCouponCardProps) => {
   const dragY = useRef(new Animated.Value(0)).current;
   const wiggle = useRef(new Animated.Value(0)).current;
+  const currentIndexRef = useRef(index);
+  const dragOriginYRef = useRef(0);
+  const isDraggingRef = useRef(false);
   const [isDragging, setIsDragging] = useState(false);
+
+  useEffect(() => {
+    if (!isDraggingRef.current) {
+      currentIndexRef.current = index;
+    }
+  }, [index]);
+
+  const startDragging = () => {
+    isDraggingRef.current = true;
+    setIsDragging(true);
+    onDragStateChange(true);
+  };
+
+  const stopDragging = () => {
+    isDraggingRef.current = false;
+    setIsDragging(false);
+    onDragStateChange(false);
+    dragY.setValue(0);
+  };
 
   useEffect(() => {
     if (!isDragging) {
@@ -130,27 +160,40 @@ const ManageCouponCard = ({
   const panResponder = useMemo(
     () =>
       PanResponder.create({
-        onMoveShouldSetPanResponder: () => isDragging,
-        onPanResponderMove: (_, gestureState) => {
-          dragY.setValue(gestureState.dy);
-        },
-        onPanResponderRelease: (_, gestureState) => {
-          const offset = Math.round(gestureState.dy / CARD_STEP);
-          const nextIndex = Math.max(0, Math.min(itemCount - 1, index + offset));
-
-          setIsDragging(false);
+        onMoveShouldSetPanResponder: () => isDraggingRef.current,
+        onMoveShouldSetPanResponderCapture: () => isDraggingRef.current,
+        onPanResponderGrant: () => {
+          dragOriginYRef.current = 0;
           dragY.setValue(0);
+        },
+        onPanResponderMove: (_, gestureState) => {
+          const adjustedDragY = gestureState.dy - dragOriginYRef.current;
+          const offset = Math.round(adjustedDragY / CARD_STEP);
+          const nextIndex = Math.max(
+            0,
+            Math.min(itemCount - 1, currentIndexRef.current + offset),
+          );
 
-          if (nextIndex !== index) {
-            onDrop(index, nextIndex);
+          onDragMove(gestureState.moveY);
+
+          if (nextIndex !== currentIndexRef.current) {
+            onMove(currentIndexRef.current, nextIndex);
+            currentIndexRef.current = nextIndex;
+            dragOriginYRef.current = gestureState.dy;
+            dragY.setValue(0);
+            return;
           }
+
+          dragY.setValue(adjustedDragY);
+        },
+        onPanResponderRelease: () => {
+          stopDragging();
         },
         onPanResponderTerminate: () => {
-          setIsDragging(false);
-          dragY.setValue(0);
+          stopDragging();
         },
       }),
-    [dragY, index, isDragging, itemCount, onDrop],
+    [dragY, itemCount, onDragMove, onMove, stopDragging],
   );
 
   const rotation = wiggle.interpolate({
@@ -177,7 +220,7 @@ const ManageCouponCard = ({
         mode="manage"
         onDelete={onDelete}
         onEdit={onEdit}
-        onLongPress={() => setIsDragging(true)}
+        onLongPress={startDragging}
       />
     </Animated.View>
   );
@@ -188,25 +231,21 @@ export const CouponListScreen = ({ navigation }: CouponListScreenProps) => {
   const deleteCoupon = useCouponStore((state) => state.deleteCoupon);
   const reorderCoupons = useCouponStore((state) => state.reorderCoupons);
   const insets = useSafeAreaInsets();
-  const { width } = useWindowDimensions();
+  const { height, width } = useWindowDimensions();
+  const flatListRef = useRef<FlatList<Coupon>>(null);
+  const contentHeightRef = useRef(0);
+  const scrollOffsetRef = useRef(0);
+  const listHeightRef = useRef(0);
   const [screenMode, setScreenMode] = useState<ScreenMode>('coupons');
   const [selectedCategory, setSelectedCategory] = useState<CategoryId>('todos');
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+  const [isDraggingCard, setIsDraggingCard] = useState(false);
   const bannerWidth = width - LIST_HORIZONTAL_PADDING * 2;
+  const displayableCoupons = coupons.filter(isCouponReadyToDisplay);
   const listCoupons =
-    screenMode === 'manage' ? coupons : coupons.slice(0, visibleCount);
-
-  const handleCardPress = async (restaurantURL?: string) => {
-    if (!restaurantURL) {
-      return;
-    }
-
-    const canOpen = await Linking.canOpenURL(restaurantURL);
-
-    if (canOpen) {
-      await Linking.openURL(restaurantURL);
-    }
-  };
+    screenMode === 'manage'
+      ? coupons
+      : displayableCoupons.slice(0, visibleCount);
 
   const handleDeleteCoupon = (couponId: string) => {
     Alert.alert('Excluir card', 'Deseja excluir este card?', [
@@ -224,6 +263,34 @@ export const CouponListScreen = ({ navigation }: CouponListScreenProps) => {
     const [selectedCoupon] = nextCoupons.splice(fromIndex, 1);
     nextCoupons.splice(toIndex, 0, selectedCoupon);
     reorderCoupons(nextCoupons);
+  };
+
+  const handleDragMove = (screenY: number) => {
+    const visibleListHeight =
+      listHeightRef.current || height - HEADER_HEIGHT - FOOTER_HEIGHT;
+    const maxScrollOffset = Math.max(
+      0,
+      contentHeightRef.current - visibleListHeight,
+    );
+    const listTop = HEADER_HEIGHT + 90;
+    const listBottom = height - FOOTER_HEIGHT - insets.bottom;
+    let nextOffset = scrollOffsetRef.current;
+
+    if (screenY < listTop + AUTO_SCROLL_THRESHOLD) {
+      nextOffset = Math.max(0, nextOffset - AUTO_SCROLL_STEP);
+    }
+
+    if (screenY > listBottom - AUTO_SCROLL_THRESHOLD) {
+      nextOffset = Math.min(maxScrollOffset, nextOffset + AUTO_SCROLL_STEP);
+    }
+
+    if (nextOffset !== scrollOffsetRef.current) {
+      scrollOffsetRef.current = nextOffset;
+      flatListRef.current?.scrollToOffset({
+        animated: false,
+        offset: nextOffset,
+      });
+    }
   };
 
   return (
@@ -279,6 +346,7 @@ export const CouponListScreen = ({ navigation }: CouponListScreenProps) => {
       </View>
 
       <FlatList
+        ref={flatListRef}
         ListHeaderComponent={
           screenMode === 'coupons' ? (
             <Image
@@ -303,11 +371,22 @@ export const CouponListScreen = ({ navigation }: CouponListScreenProps) => {
         onEndReached={() =>
           screenMode === 'coupons'
             ? setVisibleCount((currentCount) =>
-                Math.min(currentCount + PAGE_SIZE, coupons.length),
+                Math.min(currentCount + PAGE_SIZE, displayableCoupons.length),
               )
             : undefined
         }
         onEndReachedThreshold={0.6}
+        onContentSizeChange={(_, contentHeight) => {
+          contentHeightRef.current = contentHeight;
+        }}
+        onLayout={(event) => {
+          listHeightRef.current = event.nativeEvent.layout.height;
+        }}
+        onScroll={(event) => {
+          scrollOffsetRef.current = event.nativeEvent.contentOffset.y;
+        }}
+        scrollEventThrottle={16}
+        scrollEnabled={!isDraggingCard}
         renderItem={({ item }) => (
           screenMode === 'manage' ? (
             <ManageCouponCard
@@ -315,12 +394,14 @@ export const CouponListScreen = ({ navigation }: CouponListScreenProps) => {
               index={coupons.findIndex((coupon) => coupon.id === item.id)}
               itemCount={coupons.length}
               onDelete={() => handleDeleteCoupon(item.id)}
-              onDrop={reorderCouponByIndex}
+              onDragMove={handleDragMove}
+              onDragStateChange={setIsDraggingCard}
               onEdit={() =>
                 navigation.navigate('CouponForm', {
                   couponId: item.id,
                 })
               }
+              onMove={reorderCouponByIndex}
             />
           ) : (
             <CouponCard
@@ -332,7 +413,11 @@ export const CouponListScreen = ({ navigation }: CouponListScreenProps) => {
                   couponId: item.id,
                 })
               }
-              onPress={() => handleCardPress(item.restaurantURL)}
+              onPress={() =>
+                navigation.navigate('CouponForm', {
+                  couponId: item.id,
+                })
+              }
             />
           )
         )}
@@ -361,6 +446,15 @@ export const CouponListScreen = ({ navigation }: CouponListScreenProps) => {
 
         <Pressable
           accessibilityRole="button"
+          onPress={() => navigation.navigate('CouponForm')}
+          style={({ pressed }) => [styles.footerButton, pressed && styles.pressed]}
+        >
+          <NewCardIcon color={colors.surface} height={24} width={24} />
+          <Text style={styles.footerLabel}>Novo Card</Text>
+        </Pressable>
+
+        <Pressable
+          accessibilityRole="button"
           onPress={() => setScreenMode('manage')}
           style={({ pressed }) => [styles.footerButton, pressed && styles.pressed]}
         >
@@ -379,20 +473,6 @@ export const CouponListScreen = ({ navigation }: CouponListScreenProps) => {
           </Text>
         </Pressable>
       </View>
-
-      {screenMode === 'manage' ? (
-        <Pressable
-          accessibilityRole="button"
-          onPress={() => navigation.navigate('CouponForm')}
-          style={({ pressed }) => [
-            styles.newCardButton,
-            { bottom: FOOTER_HEIGHT + insets.bottom + spacing.md },
-            pressed && styles.pressed,
-          ]}
-        >
-          <Text style={styles.newCardButtonText}>Novo Card</Text>
-        </Pressable>
-      ) : null}
     </View>
   );
 };
@@ -493,23 +573,6 @@ const styles = StyleSheet.create({
     fontFamily: typography.family.semiBold,
     fontSize: 12,
     lineHeight: 16,
-  },
-  newCardButton: {
-    alignItems: 'center',
-    backgroundColor: colors.login,
-    borderRadius: 14,
-    height: 49,
-    justifyContent: 'center',
-    minWidth: 151,
-    paddingHorizontal: 21,
-    position: 'absolute',
-    right: LIST_HORIZONTAL_PADDING,
-  },
-  newCardButtonText: {
-    color: colors.surface,
-    fontFamily: typography.family.bold,
-    fontSize: 18,
-    lineHeight: 21,
   },
   pressed: {
     opacity: 0.72,

@@ -5,6 +5,10 @@ import { createJSONStorage, persist } from 'zustand/middleware';
 import { mockedCoupons } from '../mocks/coupons';
 import type { Coupon, CouponFormInput, CouponId } from '../types/coupon';
 
+type PersistedCoupon = Coupon & {
+  restaurant?: string;
+};
+
 type CouponState = {
   coupons: Coupon[];
   addCoupon: (input: CouponFormInput) => void;
@@ -18,8 +22,7 @@ const normalizeCouponInput = (input: CouponFormInput): CouponFormInput => ({
   bonus: input.bonus,
   mealImage: input.mealImage,
   restaurantLogo: input.restaurantLogo,
-  restaurant: input.restaurant.trim(),
-  restaurantURL: input.restaurantURL?.trim() || undefined,
+  title: input.title.trim(),
   description: input.description.trim(),
   opening: input.opening.trim(),
   close: input.close.trim(),
@@ -29,6 +32,15 @@ const createCoupon = (input: CouponFormInput): Coupon => ({
   id: `coupon-${Date.now()}`,
   ...normalizeCouponInput(input),
 });
+
+const normalizePersistedCoupon = (coupon: PersistedCoupon): Coupon => {
+  const { restaurant, ...currentCoupon } = coupon;
+
+  return {
+    ...currentCoupon,
+    title: coupon.title || restaurant || '',
+  };
+};
 
 export const useCouponStore = create<CouponState>()(
   persist(
@@ -63,6 +75,18 @@ export const useCouponStore = create<CouponState>()(
       },
     }),
     {
+      merge: (persistedState, currentState) => {
+        const nextState = persistedState as Partial<CouponState> | undefined;
+
+        return {
+          ...currentState,
+          ...nextState,
+          coupons:
+            nextState?.coupons?.map((coupon) =>
+              normalizePersistedCoupon(coupon as PersistedCoupon),
+            ) ?? currentState.coupons,
+        };
+      },
       name: 'floripa-cupons:coupon-cards',
       storage: createJSONStorage(() => AsyncStorage),
     },
